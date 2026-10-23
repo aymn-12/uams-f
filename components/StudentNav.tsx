@@ -10,6 +10,7 @@ import {
   Award,
   BookOpen,
   QrCode,
+  CalendarDays,
   MessageSquare,
   LogOut,
   ChevronDown,
@@ -50,6 +51,11 @@ const navItems = [
     label: "المحاضرات والملازم",
     href: "/dashboard/student/materials",
     icon: BookOpen,
+  },
+  {
+    label: "الجدول الأسبوعي",
+    href: "/dashboard/student/schedule",
+    icon: CalendarDays,
   },
   {
     label: "تسجيل الحضور",

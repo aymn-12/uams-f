@@ -514,7 +514,17 @@ export default function StudentDashboardPage() {
               <Panel
                 title="محاضرات اليوم"
                 action={
-                  <span className="text-sm text-slate-500">{now ? dayFmt.format(now) : ""}</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs sm:text-sm text-slate-500 font-medium">
+                      {now ? dayFmt.format(now) : ""}
+                    </span>
+                    <Link
+                      href="/dashboard/student/schedule"
+                      className="text-xs text-[#14352c] font-bold hover:underline flex items-center gap-1 border-r border-slate-200 pr-3"
+                    >
+                      الجدول الأسبوعي الكامل ←
+                    </Link>
+                  </div>
                 }
               >
                 {lectures.length === 0 ? (
