@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { IBM_Plex_Mono } from "next/font/google";
 import { apiFetch } from "@/lib/api";
 import { getStoredUser, User } from "@/lib/auth";
 import DoctorNav from "@/components/DoctorNav";
@@ -26,7 +25,7 @@ import {
 import { smartCache } from "@/lib/cache";
 import { formatAcademicDate } from "@/lib/date";
 
-const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"] });
+const mono = { className: "font-mono" };
 
 export default function DoctorAssignmentsPage() {
   const router = useRouter();

@@ -3,7 +3,6 @@
 import { useEffect, useState, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { IBM_Plex_Mono } from "next/font/google";
 import { apiFetch } from "@/lib/api";
 import { getStoredUser, User } from "@/lib/auth";
 import { smartCache } from "@/lib/cache";
@@ -36,7 +35,7 @@ import {
   Eye,
 } from "lucide-react";
 
-const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"] });
+const mono = { className: "font-mono" };
 
 const DAY_LABELS: Record<string, string> = {
   SUNDAY: "الأحد",

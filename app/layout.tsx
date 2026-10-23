@@ -1,13 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Sans_Arabic } from "next/font/google";
 import "./globals.css";
-
-const ibmPlexArabic = IBM_Plex_Sans_Arabic({
-  subsets: ["arabic", "latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-  variable: "--font-ibm-plex",
-});
 
 export const metadata: Metadata = {
   title: {
@@ -36,11 +28,11 @@ export default function RootLayout({
       lang="ar"
       dir="rtl"
       data-scroll-behavior="smooth"
-      className={`h-full antialiased ${ibmPlexArabic.variable}`}
+      className="h-full antialiased font-sans"
       suppressHydrationWarning
     >
       <body
-        className={`${ibmPlexArabic.className} min-h-screen flex flex-col bg-white text-slate-900`}
+        className="min-h-screen flex flex-col bg-white text-slate-900"
         suppressHydrationWarning
       >
         {children}

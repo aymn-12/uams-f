@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { IBM_Plex_Mono } from "next/font/google";
 import { apiFetch } from "@/lib/api";
 import { smartCache } from "@/lib/cache";
 import { getStoredUser, User } from "@/lib/auth";
@@ -23,7 +22,7 @@ import {
   Layers,
 } from "lucide-react";
 
-const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"] });
+const mono = { className: "font-mono" };
 
 export default function DoctorAttendancePage() {
   const router = useRouter();
