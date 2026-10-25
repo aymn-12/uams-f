@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { smartCache } from "@/lib/cache";
 import { getStoredUser, User } from "@/lib/auth";
-import StudentNav from "@/components/StudentNav";
+import Navbar from '@/components/Navbar';
 import CustomSelect from "@/components/CustomSelect";
 import { ChevronDown, RefreshCw } from "lucide-react";
 
@@ -156,7 +156,7 @@ export default function StudentGradesPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <StudentNav user={user} />
+      <Navbar user={user} />
 
       <main className="max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-5">

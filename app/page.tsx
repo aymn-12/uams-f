@@ -99,9 +99,8 @@ export default function LoginPage() {
     setCapsOn(e.getModifierState && e.getModifierState("CapsLock"));
 
   return (
-    <main
-      className={`flex-1 grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] bg-white text-slate-900`}
-    >
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans" dir="rtl">
+      <main className="flex-1 grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] bg-white text-slate-900">
       {/* Form side */}
       <section className="flex items-center justify-center px-5 sm:px-8 py-10">
         <div className="w-full max-w-[400px]">
@@ -290,5 +289,6 @@ export default function LoginPage() {
         </p>
       </aside>
     </main>
-  );
+  </div>
+);
 }

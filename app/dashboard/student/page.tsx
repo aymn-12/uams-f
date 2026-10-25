@@ -6,7 +6,8 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { smartCache } from "@/lib/cache";
 import { getStoredUser, User } from "@/lib/auth";
-import StudentNav from "@/components/StudentNav";
+import Navbar from '@/components/Navbar';
+import DigitalIdModal from '@/components/DigitalIdModal';
 import { QrCode, RefreshCw, Copy, Check, X, ChevronLeft } from "lucide-react";
 
 /* ───────── Types (adjust to the real API shape) ───────── */
@@ -229,18 +230,16 @@ function EmptyRow({ text }: { text: string }) {
 
 function Shell({
   user,
-  onOpenProfile,
   onOpenCard,
   children,
 }: {
   user: User | null;
-  onOpenProfile: () => void;
-  onOpenCard: () => void;
+  onOpenCard?: () => void;
   children: React.ReactNode;
 }) {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <StudentNav user={user} onOpenProfile={onOpenProfile} onOpenCard={onOpenCard} />
+      <Navbar user={user} onOpenCard={onOpenCard} />
       <main className="max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         {children}
       </main>
@@ -336,14 +335,8 @@ export default function StudentDashboardPage() {
     }
   };
 
-  const goToRecord = () => {
-    const el = document.getElementById("record");
-    el?.scrollIntoView({ block: "start" });
-    el?.focus({ preventScroll: true });
-  };
-
   const shell = (children: React.ReactNode) => (
-    <Shell user={user} onOpenProfile={goToRecord} onOpenCard={openCard}>
+    <Shell user={user} onOpenCard={openCard}>
       {children}
     </Shell>
   );
@@ -522,7 +515,13 @@ export default function StudentDashboardPage() {
                       href="/dashboard/student/schedule"
                       className="text-xs text-[#14352c] font-bold hover:underline flex items-center gap-1 border-r border-slate-200 pr-3"
                     >
-                      الجدول الأسبوعي الكامل ←
+                      الجدول المركزي ←
+                    </Link>
+                    <Link
+                      href="/dashboard/student/planner"
+                      className="text-xs text-emerald-800 font-bold hover:underline flex items-center gap-1 border-r border-slate-200 pr-3"
+                    >
+                      جدولي الذاتي ←
                     </Link>
                   </div>
                 }
@@ -738,89 +737,11 @@ export default function StudentDashboardPage() {
       )}
 
       {/* Digital ID */}
-      <Modal open={showCard} onClose={() => setShowCard(false)} title="البطاقة الجامعية">
-        {cardLoading ? (
-          <div role="status" className="space-y-3">
-            <Skeleton className="h-14 w-full" />
-            <Skeleton className="h-44 w-44 mx-auto" />
-            <Skeleton className="h-10 w-full" />
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="rounded-lg border border-slate-200 overflow-hidden">
-              <div className="bg-[#14352c] text-white px-4 py-3">
-                <div className="text-sm font-semibold">الجامعة المستنصرية</div>
-                <div className="text-xs text-emerald-100/70">بطاقة الطالب الإلكترونية</div>
-              </div>
-              <div className="p-5 flex flex-col items-center gap-4">
-                {cardData?.qrImage ? (
-                  <img
-                    src={cardData.qrImage}
-                    alt="رمز QR للبطاقة الجامعية"
-                    className="w-44 h-44 object-contain rounded border border-slate-200 p-2 bg-white"
-                  />
-                ) : (
-                  <div className="w-44 h-44 grid place-items-center rounded border border-dashed border-slate-300 text-sm text-slate-500">
-                    الرمز غير متوفر
-                  </div>
-                )}
-                <div className="text-center">
-                  <div className="font-semibold">{name}</div>
-                  <div dir="ltr" className="text-sm text-slate-600 tabular-nums">
-                    {student.studentId || "—"}
-                  </div>
-                  {student.department && (
-                    <div className="text-sm text-slate-600">
-                      {student.department}
-                      {student.stage ? ` · المرحلة ${student.stage}` : ""}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {cardError && (
-              <p
-                role="alert"
-                className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"
-              >
-                {cardError}
-              </p>
-            )}
-
-            {!cardData && cardError ? (
-              <button
-                type="button"
-                onClick={loadCard}
-                className={`w-full h-10 rounded-md bg-[#14352c] hover:bg-[#1b4a3d] text-white text-sm font-medium ${focusRing}`}
-              >
-                إعادة المحاولة
-              </button>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={rotateToken}
-                  disabled={rotating}
-                  className={`w-full h-10 inline-flex items-center justify-center gap-2 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed ${focusRing}`}
-                >
-                  <RefreshCw
-                    className={`w-4 h-4 ${rotating ? "animate-spin" : ""}`}
-                    aria-hidden="true"
-                  />
-                  {rotating ? "جارٍ التجديد..." : "تجديد الرمز"}
-                </button>
-                <p className="text-xs text-slate-500 leading-5">
-                  {parseDate(cardData?.tokenRotatedAt)
-                    ? `آخر تجديد: ${dateTimeFmt.format(parseDate(cardData?.tokenRotatedAt)!)}. `
-                    : ""}
-                  جدّد الرمز إذا شاركته مع أحد. الرمز السابق يتوقف عن العمل.
-                </p>
-              </>
-            )}
-          </div>
-        )}
-      </Modal>
+      <DigitalIdModal
+        isOpen={showCard}
+        onClose={() => setShowCard(false)}
+        initialData={cardData}
+      />
     </>
   );
 }

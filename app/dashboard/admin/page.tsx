@@ -7,7 +7,7 @@ import { apiFetch } from "@/lib/api";
 import { getStoredUser, User } from "@/lib/auth";
 import { smartCache } from "@/lib/cache";
 import { formatAcademicTime } from "@/lib/date";
-import AdminNav from "@/components/AdminNav";
+import Navbar from '@/components/Navbar';
 import {
   Building,
   GraduationCap,
@@ -71,7 +71,7 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col" dir="rtl">
-      <AdminNav user={user} />
+      <Navbar user={user} />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         {error && (

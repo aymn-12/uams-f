@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { getStoredUser, User } from "@/lib/auth";
-import DoctorNav from "@/components/DoctorNav";
+import Navbar from '@/components/Navbar';
 import Dialog from "@/components/Dialog";
 import CustomSelect from "@/components/CustomSelect";
 import {
@@ -20,6 +20,10 @@ import {
   Send,
   FileText,
   Clock,
+  Download,
+  Paperclip,
+  Upload,
+  X,
 } from "lucide-react";
 
 import { smartCache } from "@/lib/cache";
@@ -42,6 +46,7 @@ export default function DoctorAssignmentsPage() {
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [maxScore, setMaxScore] = useState<number>(10);
+  const [assignmentFile, setAssignmentFile] = useState<File | null>(null);
   const [creating, setCreating] = useState(false);
 
   // Submissions Modal
@@ -110,6 +115,25 @@ export default function DoctorAssignmentsPage() {
     setCreating(true);
 
     try {
+      let attachments: any[] = [];
+      if (assignmentFile) {
+        const formData = new FormData();
+        formData.append("file", assignmentFile);
+        const upRes = await apiFetch("/assignments/upload", {
+          method: "POST",
+          body: formData,
+        });
+        if (upRes?.data) {
+          attachments = [
+            {
+              fileName: upRes.data.fileName,
+              fileUrl: upRes.data.fileUrl,
+              fileSize: upRes.data.fileSize,
+            },
+          ];
+        }
+      }
+
       await apiFetch("/assignments", {
         method: "POST",
         body: JSON.stringify({
@@ -119,6 +143,7 @@ export default function DoctorAssignmentsPage() {
           deadline: dueDate,
           dueDate: dueDate,
           maxScore: Number(maxScore) || 10,
+          ...(attachments.length > 0 ? { attachments } : {}),
         }),
       });
 
@@ -126,6 +151,7 @@ export default function DoctorAssignmentsPage() {
       setTitle("");
       setDescription("");
       setDueDate("");
+      setAssignmentFile(null);
       setDialog({
         isOpen: true,
         title: "تم نشر الواجب بنجاح",
@@ -220,7 +246,7 @@ export default function DoctorAssignmentsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col" dir="rtl">
-      <DoctorNav user={user} />
+      <Navbar user={user} />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         {/* Navigation Breadcrumb & Header */}
@@ -377,6 +403,37 @@ export default function DoctorAssignmentsPage() {
             </div>
           </div>
 
+          <div>
+            <label className="block text-xs font-bold text-slate-800 mb-1.5">ملف مرفق للتكليف (اختياري - PDF, Word, إلخ):</label>
+            <div className="flex items-center gap-2">
+              <label className="flex-1 py-2.5 px-3.5 border border-dashed border-slate-300 hover:border-[#14352c] rounded-xl flex items-center justify-between text-xs text-slate-600 cursor-pointer bg-slate-50 hover:bg-white transition">
+                <span className="truncate">
+                  {assignmentFile ? assignmentFile.name : "انقر لاختيار ملف ورقة الأسئلة أو التعليمات..."}
+                </span>
+                <Upload className="w-4 h-4 text-slate-400 shrink-0" />
+                <input
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      setAssignmentFile(e.target.files[0]);
+                    }
+                  }}
+                />
+              </label>
+              {assignmentFile && (
+                <button
+                  type="button"
+                  onClick={() => setAssignmentFile(null)}
+                  className="p-2.5 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 transition"
+                  title="إزالة الملف"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="pt-3 flex justify-end gap-2 border-t border-slate-100">
             <button
               type="button"
@@ -431,6 +488,33 @@ export default function DoctorAssignmentsPage() {
                     </div>
                     {sub.submissionText && (
                       <p className="text-slate-600 line-clamp-2">{sub.submissionText}</p>
+                    )}
+                    {sub.submittedFiles && sub.submittedFiles.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {sub.submittedFiles.map((file: any, fIdx: number) => {
+                          const token = typeof window !== "undefined" ? localStorage.getItem("uams_access_token") : "";
+                          const apiBase = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "");
+                          const downloadUrl = `${apiBase}/api/files/submission/${sub._id}/files/${fIdx}/download?token=${encodeURIComponent(token || "")}`;
+                          return (
+                            <a
+                              key={fIdx}
+                              href={downloadUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-[#14352c] text-[#14352c] text-xs font-bold transition inline-flex items-center gap-1.5 shadow-2xs"
+                              title="تحميل ملف إجابة الطالب"
+                            >
+                              <Download className="w-3.5 h-3.5 text-[#14352c]" />
+                              <span>{file.fileName || "ملف الإجابة"}</span>
+                              {file.fileSize ? (
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  ({(file.fileSize / 1024).toFixed(0)} KB)
+                                </span>
+                              ) : null}
+                            </a>
+                          );
+                        })}
+                      </div>
                     )}
                     {sub.attachmentUrl && (
                       <a

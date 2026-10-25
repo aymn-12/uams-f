@@ -7,7 +7,7 @@ import { apiFetch } from "@/lib/api";
 import { smartCache } from "@/lib/cache";
 import { formatAcademicDate } from "@/lib/date";
 import { getStoredUser, User } from "@/lib/auth";
-import DoctorNav from "@/components/DoctorNav";
+import Navbar from '@/components/Navbar';
 import Dialog from "@/components/Dialog";
 import CustomSelect from "@/components/CustomSelect";
 import {
@@ -183,7 +183,7 @@ export default function DoctorMaterialsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col" dir="rtl">
-      <DoctorNav user={user} />
+      <Navbar user={user} />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         {/* Navigation Breadcrumb & Header */}
@@ -275,15 +275,22 @@ export default function DoctorMaterialsPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <a
-                      href={`http://localhost:5000/api/files/material/${m._id}/download`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3.5 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-[#14352c] text-xs font-bold transition flex items-center gap-1.5"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      تحميل
-                    </a>
+                    {(() => {
+                      const token = typeof window !== "undefined" ? localStorage.getItem("uams_access_token") : "";
+                      const apiBase = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "");
+                      const dlUrl = `${apiBase}/api/files/material/${m._id}/download?token=${encodeURIComponent(token || "")}`;
+                      return (
+                        <a
+                          href={dlUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3.5 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-[#14352c] text-xs font-bold transition flex items-center gap-1.5"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          تحميل
+                        </a>
+                      );
+                    })()}
 
                     <button
                       onClick={() => handleDeleteMaterial(m._id)}

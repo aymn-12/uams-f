@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { smartCache } from "@/lib/cache";
 import { getStoredUser, User } from "@/lib/auth";
-import StudentNav from "@/components/StudentNav";
+import Navbar from '@/components/Navbar';
 import CustomSelect from "@/components/CustomSelect";
 import {
   Check,
@@ -18,6 +18,8 @@ import {
   ShieldCheck,
   AlertCircle,
   FileCheck,
+  Download,
+  Paperclip,
 } from "lucide-react";
 
 const mono = { className: "font-mono" };
@@ -25,11 +27,12 @@ const mono = { className: "font-mono" };
 /* ───────── Types ───────── */
 
 type Submission = {
+  _id?: string;
   score?: number | null;
   isLate?: boolean;
   doctorFeedback?: string;
   studentNotes?: string;
-  submittedFiles?: { fileUrl?: string }[];
+  submittedFiles?: { fileName?: string; fileUrl?: string; fileSize?: number }[];
 };
 type Assignment = {
   _id: string;
@@ -38,6 +41,7 @@ type Assignment = {
   deadline?: string;
   dueDate?: string;
   maxScore?: number;
+  attachments?: { fileName?: string; fileUrl?: string; fileSize?: number }[];
   allowLate?: boolean;
   displayStatus?: string;
   mySubmission?: Submission;
@@ -518,7 +522,7 @@ export default function StudentAssignmentsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <StudentNav user={user} />
+      <Navbar user={user} />
 
       <main className="max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         {/* Title block */}
@@ -689,6 +693,55 @@ export default function StudentAssignmentsPage() {
                               <p className="text-sm text-slate-600 leading-7 line-clamp-2">
                                 {a.description}
                               </p>
+                            )}
+
+                            {/* Assignment Attachments from Doctor */}
+                            {a.attachments && a.attachments.length > 0 && (
+                              <div className="mt-2.5 flex flex-wrap gap-2">
+                                {a.attachments.map((att: any, attIdx: number) => {
+                                  const apiBase = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "");
+                                  const dlUrl = att.fileUrl?.startsWith("http") ? att.fileUrl : `${apiBase}${att.fileUrl}`;
+                                  return (
+                                    <a
+                                      key={attIdx}
+                                      href={dlUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 transition"
+                                    >
+                                      <Paperclip className="w-3.5 h-3.5 text-slate-500" />
+                                      <span>مرفق التكليف: {att.fileName || "ملف"}</span>
+                                    </a>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {/* Student Submitted Files */}
+                            {(state === "submitted" || state === "graded") && sub?.submittedFiles && sub.submittedFiles.length > 0 && (
+                              <div className="mt-2.5 flex flex-wrap gap-2">
+                                {sub.submittedFiles.map((f: any, fIdx: number) => {
+                                  const token = typeof window !== "undefined" ? localStorage.getItem("uams_access_token") : "";
+                                  const apiBase = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "");
+                                  const dlUrl = sub._id
+                                    ? `${apiBase}/api/files/submission/${sub._id}/files/${fIdx}/download?token=${encodeURIComponent(token || "")}`
+                                    : `${apiBase}${f.fileUrl}`;
+                                  return (
+                                    <a
+                                      key={fIdx}
+                                      href={dlUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition"
+                                      title="تحميل الملف الذي قمت بتسليمه"
+                                    >
+                                      <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                                      <span>ملفي المسلّم: {f.fileName || "مستند الإجابة"}</span>
+                                      <Download className="w-3 h-3 text-emerald-600" />
+                                    </a>
+                                  );
+                                })}
+                              </div>
                             )}
                             {state === "graded" && sub?.doctorFeedback && (
                               <div className="mt-3 rounded-md bg-slate-50 border border-slate-200 px-3.5 py-3">

@@ -6,23 +6,21 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { getStoredUser, User } from "@/lib/auth";
 import { smartCache } from "@/lib/cache";
-import StudentNav from "@/components/StudentNav";
+import Navbar from '@/components/Navbar';
 import {
   CalendarDays,
   Printer,
   Clock,
   MapPin,
-  Building,
   GraduationCap,
   RefreshCw,
   LayoutGrid,
   ListFilter,
   CheckCircle2,
-  AlertCircle,
   Sparkles,
+  AlertCircle,
+  BookmarkCheck,
 } from "lucide-react";
-
-const mono = { className: "font-mono" };
 
 interface ScheduleSlot {
   _id: string;
@@ -78,53 +76,6 @@ const WEEKDAYS = [
   { key: "THURSDAY", label: "الخميس" },
 ];
 
-const STANDARD_PERIODS = [
-  {
-    periodIndex: 1,
-    title: "الفترة الأولى",
-    sub1: "الساعة الأولى (8:30 - 9:20)",
-    sub2: "الساعة الثانية (9:20 - 10:10)",
-    timeRange: "08:30 - 10:10",
-    startHour: 8,
-    startMin: 30,
-    endHour: 10,
-    endMin: 10,
-  },
-  {
-    periodIndex: 2,
-    title: "الفترة الثانية",
-    sub1: "الساعة الأولى (10:20 - 11:10)",
-    sub2: "الساعة الثانية (11:10 - 12:00)",
-    timeRange: "10:20 - 12:00",
-    startHour: 10,
-    startMin: 20,
-    endHour: 12,
-    endMin: 0,
-  },
-  {
-    periodIndex: 3,
-    title: "الفترة الثالثة",
-    sub1: "الساعة الأولى (12:10 - 1:00)",
-    sub2: "الساعة الثانية (1:00 - 1:50)",
-    timeRange: "12:10 - 01:50",
-    startHour: 12,
-    startMin: 10,
-    endHour: 13,
-    endMin: 50,
-  },
-  {
-    periodIndex: 4,
-    title: "الفترة الرابعة",
-    sub1: "الساعة الأولى (2:00 - 2:50)",
-    sub2: "الساعة الثانية (2:50 - 3:40)",
-    timeRange: "02:00 - 03:40",
-    startHour: 14,
-    startMin: 0,
-    endHour: 15,
-    endMin: 40,
-  },
-];
-
 export default function StudentSchedulePage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
@@ -144,32 +95,80 @@ export default function StudentSchedulePage() {
     setUser(stored);
 
     // Load from cache first
-    const cachedSchedule = smartCache.get<ScheduleSlot[]>("/academic/schedule");
-    const cachedDashboard = smartCache.get<StudentDashboardData>("/dashboard/student");
-    if (cachedSchedule?.data) setSlots(cachedSchedule.data);
-    if (cachedDashboard?.data) setDashboardData(cachedDashboard.data);
+    const cachedSchedule =
+      smartCache.get<any>("/academic/schedules") ||
+      smartCache.get<any>("/student/schedule");
+    const cachedDashboard =
+      smartCache.get<any>("/dashboards/student") ||
+      smartCache.get<any>("/dashboard/student");
+
+    if (cachedSchedule?.data) {
+      const parsed = Array.isArray(cachedSchedule.data)
+        ? cachedSchedule.data
+        : cachedSchedule.data?.data;
+      if (Array.isArray(parsed) && parsed.length > 0) setSlots(parsed);
+    }
+    if (cachedDashboard?.data) {
+      const dash = cachedDashboard.data?.data || cachedDashboard.data;
+      if (dash && typeof dash === "object") setDashboardData(dash);
+    }
 
     loadData();
   }, [router]);
 
+  const extractList = (res: any): ScheduleSlot[] => {
+    if (!res) return [];
+    if (Array.isArray(res)) return res;
+    if (Array.isArray(res.data)) return res.data;
+    return [];
+  };
+
   const loadData = async () => {
     setFetching(true);
     try {
-      const [schedRes, dashRes] = await Promise.all([
-        apiFetch("/academic/schedule"),
-        apiFetch("/dashboard/student"),
-      ]);
+      // 1. Fetch student schedule (resilient fallback)
+      let fetchedSlots: ScheduleSlot[] = [];
+      try {
+        const schedRes = await apiFetch("/academic/schedules");
+        fetchedSlots = extractList(schedRes);
+      } catch {
+        // Fallback to student personal schedule endpoint
+      }
 
-      if (schedRes?.data) {
-        setSlots(schedRes.data);
-        smartCache.set("/academic/schedule", schedRes.data);
+      if (fetchedSlots.length === 0) {
+        try {
+          const studentSchedRes = await apiFetch("/student/schedule");
+          fetchedSlots = extractList(studentSchedRes);
+        } catch {
+          // Both failed
+        }
       }
-      if (dashRes?.data) {
-        setDashboardData(dashRes.data);
-        smartCache.set("/dashboard/student", dashRes.data);
+
+      if (fetchedSlots.length > 0) {
+        setSlots(fetchedSlots);
+        smartCache.set("/academic/schedules", fetchedSlots);
       }
-    } catch {
-      // Keep cached if available
+
+      // 2. Fetch student dashboard data for profile & stage
+      try {
+        const dashRes = await apiFetch("/dashboards/student");
+        const dashData = dashRes?.data || dashRes;
+        if (dashData && typeof dashData === "object") {
+          setDashboardData(dashData);
+          smartCache.set("/dashboards/student", dashData);
+        }
+      } catch {
+        try {
+          const dashRes2 = await apiFetch("/dashboard/student");
+          const dashData2 = dashRes2?.data || dashRes2;
+          if (dashData2 && typeof dashData2 === "object") {
+            setDashboardData(dashData2);
+            smartCache.set("/dashboard/student", dashData2);
+          }
+        } catch {
+          // ignore
+        }
+      }
     } finally {
       setLoading(false);
       setFetching(false);
@@ -187,17 +186,24 @@ export default function StudentSchedulePage() {
     return (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0);
   };
 
-  // Find slot for day and period index
+  // Map slots to Period 1 (8:30 - 10:10), Period 2 (10:20 - 12:00), Period 3 (12:10 - 1:50)
   const getSlotForPeriod = (dayKey: string, periodIdx: number): ScheduleSlot | undefined => {
-    const period = STANDARD_PERIODS[periodIdx - 1];
-    const periodStartMin = period.startHour * 60 + period.startMin;
-    const periodEndMin = period.endHour * 60 + period.endMin;
-
+    if (!Array.isArray(slots) || slots.length === 0) return undefined;
     return slots.find((s) => {
-      if (s.dayOfWeek !== dayKey) return false;
-      const slotStart = parseTimeToMinutes(s.startTime);
-      // Fits within period window or starts nearby (+/- 30 min)
-      return Math.abs(slotStart - periodStartMin) <= 45;
+      if (s.dayOfWeek?.toUpperCase() !== dayKey.toUpperCase()) return false;
+      const startMin = parseTimeToMinutes(s.startTime);
+
+      if (periodIdx === 1) {
+        // Starts before 10:15 (e.g. 08:30, 09:00)
+        return startMin < 615;
+      } else if (periodIdx === 2) {
+        // Starts between 10:15 and 12:05 (e.g. 10:20, 10:30, 11:00)
+        return startMin >= 615 && startMin < 725;
+      } else if (periodIdx === 3) {
+        // Starts at or after 12:05 (e.g. 12:10, 13:00)
+        return startMin >= 725;
+      }
+      return false;
     });
   };
 
@@ -213,68 +219,61 @@ export default function StudentSchedulePage() {
   const departmentName = studentInfo?.department || "علوم الحاسوب";
   const collegeName = studentInfo?.college || "كلية العلوم";
 
-  const filteredSlots = useMemo(() => {
-    if (selectedDay === "ALL") return slots;
-    return slots.filter((s) => s.dayOfWeek === selectedDay);
-  }, [slots, selectedDay]);
-
   if (loading && slots.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">
-        <RefreshCw className="w-8 h-8 animate-spin text-emerald-400" />
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-900">
+        <RefreshCw className="w-8 h-8 animate-spin text-[#14352c]" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans" dir="rtl">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans" dir="rtl">
       {/* Header Navbar */}
-      <div className="print:hidden">
-        <StudentNav user={user} />
-      </div>
+      <Navbar user={user} />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         {/* Navigation Breadcrumb & Toolbar */}
-        <div className="print:hidden bg-slate-900/80 backdrop-blur-md p-5 sm:p-6 rounded-2xl border border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="print:hidden bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 border-t-2 border-t-[#14352c] shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
-            <div className="flex items-center gap-2 text-xs text-slate-400">
-              <Link href="/dashboard/student" className="hover:text-emerald-400 transition">
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <Link href="/dashboard/student" className="hover:text-[#14352c] transition">
                 بوابة الطالب
               </Link>
               <span>/</span>
-              <span className="text-emerald-400 font-semibold">جدول الدروس الأسبوعي</span>
+              <span className="text-[#14352c] font-semibold">جدول الدروس الأسبوعي</span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2.5">
-              <CalendarDays className="w-6 h-6 text-emerald-400" />
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 flex items-center gap-2.5">
+              <CalendarDays className="w-6 h-6 text-[#14352c]" />
               جدول المحاضرات الأسبوعي المعتمد
             </h1>
-            <p className="text-xs text-slate-400">
-              الجدول الرسمي الصادر من رئاسة قسم {departmentName} للعام الدراسي {currentAcademicYear}
+            <p className="text-xs text-slate-600">
+              الجدول الدراسي الصادر من رئاسة قسم {departmentName} • للعام الدراسي {currentAcademicYear}
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
             {/* View Mode Toggle */}
-            <div className="p-1 rounded-xl bg-slate-800 border border-slate-700/80 flex items-center gap-1">
+            <div className="p-1 rounded-xl bg-slate-100 border border-slate-200 flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => setViewMode("official")}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
                   viewMode === "official"
-                    ? "bg-emerald-600 text-white shadow-xs"
-                    : "text-slate-400 hover:text-white"
+                    ? "bg-[#14352c] text-white shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 <LayoutGrid className="w-3.5 h-3.5" />
-                المستند الرسمي (النمط الجامعي)
+                المستند الرسمي
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode("cards")}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
                   viewMode === "cards"
-                    ? "bg-emerald-600 text-white shadow-xs"
-                    : "text-slate-400 hover:text-white"
+                    ? "bg-[#14352c] text-white shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 <ListFilter className="w-3.5 h-3.5" />
@@ -286,82 +285,103 @@ export default function StudentSchedulePage() {
             <button
               type="button"
               onClick={handlePrint}
-              className="px-4 py-2 rounded-xl bg-[#14352c] hover:bg-[#1b4a3d] text-white text-xs font-bold transition flex items-center gap-1.5 shadow-xs border border-emerald-500/20"
+              className="px-4 py-2 rounded-xl bg-[#14352c] hover:bg-[#1b4a3d] text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
               title="طباعة الجدول الرسمي"
             >
               <Printer className="w-4 h-4 text-emerald-300" />
               طباعة الجدول
             </button>
 
+            {/* Student Personal Planner Button */}
+            <Link
+              href="/dashboard/student/planner"
+              className="px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#14352c] border border-emerald-200 text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
+              title="الانتقال إلى المخطط وجدولك الذاتي"
+            >
+              <BookmarkCheck className="w-4 h-4 text-emerald-700" />
+              جدولي الذاتي
+            </Link>
+
             {/* Refresh */}
             <button
               type="button"
               onClick={loadData}
               disabled={fetching}
-              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
               title="تحديث البيانات"
             >
-              <RefreshCw className={`w-4 h-4 ${fetching ? "animate-spin text-emerald-400" : ""}`} />
+              <RefreshCw className={`w-4 h-4 ${fetching ? "animate-spin text-[#14352c]" : ""}`} />
             </button>
           </div>
         </div>
 
-        {/* Attendance Summary Strip */}
+        {/* Academic Status Strip */}
         <div className="print:hidden grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3.5 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+          <div className="bg-white border border-slate-200 rounded-xl p-3.5 flex items-center gap-3 shadow-xs">
+            <div className="w-9 h-9 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-[#14352c]">
               <GraduationCap className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[11px] text-slate-400">المرحلة والشعبة</p>
-              <p className="text-xs font-bold text-white">
-                {currentStageText} • {slots[0]?.section?.sectionNumber || "الشعبة الأولى"}
+              <p className="text-[11px] text-slate-500 font-medium">المرحلة والشعبة</p>
+              <p className="text-xs font-bold text-slate-900">
+                {currentStageText} • {slots[0]?.section?.sectionNumber || "الشعبة A1"}
               </p>
             </div>
           </div>
 
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3.5 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400">
+          <div className="bg-white border border-slate-200 rounded-xl p-3.5 flex items-center gap-3 shadow-xs">
+            <div className="w-9 h-9 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-800">
               <Clock className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[11px] text-slate-400">عدد المحاضرات الأسبوعية</p>
-              <p className="text-xs font-bold text-white">{slots.length} حصة تدريسية</p>
+              <p className="text-[11px] text-slate-500 font-medium">المحاضرات الأسبوعية</p>
+              <p className="text-xs font-bold text-slate-900">{slots.length} محاضرات مثبتة</p>
             </div>
           </div>
 
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3.5 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+          <div className="bg-white border border-slate-200 rounded-xl p-3.5 flex items-center gap-3 shadow-xs">
+            <div className="w-9 h-9 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
               <CheckCircle2 className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[11px] text-slate-400">نسبة الالتزام والدوام</p>
-              <p className="text-xs font-bold text-emerald-400">
+              <p className="text-[11px] text-slate-500 font-medium">نسبة الالتزام والدوام</p>
+              <p className="text-xs font-bold text-emerald-800">
                 {metrics?.overallAttendanceRate || "100%"}
               </p>
             </div>
           </div>
 
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3.5 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+          <div className="bg-white border border-slate-200 rounded-xl p-3.5 flex items-center gap-3 shadow-xs">
+            <div className="w-9 h-9 rounded-lg bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-700">
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[11px] text-slate-400">نوع الدراسة</p>
-              <p className="text-xs font-bold text-white">
+              <p className="text-[11px] text-slate-500 font-medium">نوع الدراسة</p>
+              <p className="text-xs font-bold text-slate-900">
                 {studentInfo?.studyType === "EVENING" ? "دراسة مسائية" : "دراسة صباحية"}
               </p>
             </div>
           </div>
         </div>
 
+        {/* Empty State Notice */}
+        {slots.length === 0 && !loading && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-4 flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+            <div className="text-xs">
+              <span className="font-bold">تنبيه: </span>
+              لم تنشر مقررية القسم الجدول بعد. ستظهر المحاضرات والقاعات فور اعتمادها.
+            </div>
+          </div>
+        )}
+
         {/* ═══════════════════════════════════════════════════════════ */}
         {/* OFFICIAL UNIVERSITY TIMETABLE SHEET (MATCHING USER PHOTO)   */}
         {/* ═══════════════════════════════════════════════════════════ */}
         {viewMode === "official" && (
-          <div className="bg-white text-slate-900 rounded-2xl border-2 border-slate-300 shadow-xl overflow-hidden print:m-0 print:border-none print:shadow-none print:rounded-none">
+          <div className="bg-white text-slate-900 rounded-2xl border-2 border-slate-300 shadow-md overflow-hidden print:m-0 print:border-none print:shadow-none print:rounded-none">
             {/* Official Header */}
-            <div className="border-b-2 border-slate-800 text-center py-4 px-6 bg-slate-50/70">
+            <div className="border-b-2 border-slate-800 text-center py-4 px-6 bg-slate-50">
               <p className="text-xs sm:text-sm font-semibold tracking-wide text-slate-700 font-mono" dir="ltr">
                 Ministry of Higher Education and Scientific Research
               </p>
@@ -388,16 +408,16 @@ export default function StudentSchedulePage() {
                   {/* Row 1: Periods Super-headers */}
                   <tr className="bg-slate-200 border-b-2 border-slate-800 text-slate-900 font-bold">
                     {/* Period 3 (Late) */}
-                    <th colSpan={2} className="py-2 px-3 border-l-2 border-slate-800 text-xs">
-                      12:10 - 01:50
+                    <th colSpan={2} className="py-2.5 px-3 border-l-2 border-slate-800 text-xs font-mono">
+                      01:50 - 12:10
                     </th>
                     {/* Period 2 (Mid) */}
-                    <th colSpan={2} className="py-2 px-3 border-l-2 border-slate-800 text-xs">
-                      10:20 - 12:00
+                    <th colSpan={2} className="py-2.5 px-3 border-l-2 border-slate-800 text-xs font-mono">
+                      12:00 - 10:20
                     </th>
                     {/* Period 1 (Early) */}
-                    <th colSpan={2} className="py-2 px-3 border-l-2 border-slate-800 text-xs">
-                      08:30 - 10:10
+                    <th colSpan={2} className="py-2.5 px-3 border-l-2 border-slate-800 text-xs font-mono">
+                      10:10 - 08:30
                     </th>
                     {/* Day Column on Right */}
                     <th rowSpan={2} className="py-3 px-4 w-28 bg-slate-300 text-slate-900 font-bold text-sm">
@@ -407,22 +427,22 @@ export default function StudentSchedulePage() {
 
                   {/* Row 2: Sub-hours (Hour 1 & Hour 2) */}
                   <tr className="bg-slate-100 border-b-2 border-slate-800 text-[11px] text-slate-800">
-                    <th className="py-1.5 px-2 border-l border-dashed border-slate-400 font-medium">
+                    <th className="py-1.5 px-2 border-l border-dashed border-slate-400 font-medium font-mono">
                       الساعة الثانية (1:00 - 1:50)
                     </th>
-                    <th className="py-1.5 px-2 border-l-2 border-slate-800 font-medium">
+                    <th className="py-1.5 px-2 border-l-2 border-slate-800 font-medium font-mono">
                       الساعة الأولى (12:10 - 1:00)
                     </th>
-                    <th className="py-1.5 px-2 border-l border-dashed border-slate-400 font-medium">
+                    <th className="py-1.5 px-2 border-l border-dashed border-slate-400 font-medium font-mono">
                       الساعة الثانية (11:10 - 12:00)
                     </th>
-                    <th className="py-1.5 px-2 border-l-2 border-slate-800 font-medium">
+                    <th className="py-1.5 px-2 border-l-2 border-slate-800 font-medium font-mono">
                       الساعة الأولى (10:20 - 11:10)
                     </th>
-                    <th className="py-1.5 px-2 border-l border-dashed border-slate-400 font-medium">
+                    <th className="py-1.5 px-2 border-l border-dashed border-slate-400 font-medium font-mono">
                       الساعة الثانية (9:20 - 10:10)
                     </th>
-                    <th className="py-1.5 px-2 border-l-2 border-slate-800 font-medium">
+                    <th className="py-1.5 px-2 border-l-2 border-slate-800 font-medium font-mono">
                       الساعة الأولى (8:30 - 9:20)
                     </th>
                   </tr>
@@ -448,7 +468,7 @@ export default function StudentSchedulePage() {
                       const doctor = slot.section?.doctor;
 
                       return (
-                        <div className="p-2.5 h-full flex flex-col justify-between space-y-1.5">
+                        <div className="p-2.5 h-full flex flex-col justify-between space-y-1.5 bg-emerald-50/20 hover:bg-emerald-50/40 transition">
                           {/* Course Name */}
                           <p className="font-bold text-slate-900 text-xs sm:text-sm tracking-tight">
                             {course?.name || "مقرر دراسي"}
@@ -458,11 +478,11 @@ export default function StudentSchedulePage() {
                           <div className="border-t border-dashed border-slate-300 w-full" />
 
                           {/* Footer Info: Doctor & Location */}
-                          <div className="flex items-center justify-between text-[11px] text-slate-700 px-1 font-medium">
+                          <div className="flex items-center justify-between text-[11px] text-slate-700 px-1 font-medium gap-2">
                             <span className="truncate" title={doctor?.name}>
-                              {doctor?.name || "مقرر القسم"}
+                              {doctor?.name || "أستاذ المادة"}
                             </span>
-                            <span className="font-semibold text-slate-900 bg-slate-100 border border-slate-300 px-1.5 py-0.5 rounded">
+                            <span className="font-semibold text-slate-900 bg-white border border-slate-300 px-1.5 py-0.5 rounded shrink-0">
                               {slot.room || "قاعة 401"}
                             </span>
                           </div>
@@ -471,7 +491,7 @@ export default function StudentSchedulePage() {
                     };
 
                     return (
-                      <tr key={day.key} className="hover:bg-slate-50/80 transition">
+                      <tr key={day.key} className="hover:bg-slate-50 transition">
                         {/* Period 3 (Colspan 2) */}
                         <td colSpan={2} className="border-l-2 border-slate-800 p-0 align-middle">
                           {renderCell(slotP3)}
@@ -524,8 +544,8 @@ export default function StudentSchedulePage() {
                 onClick={() => setSelectedDay("ALL")}
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
                   selectedDay === "ALL"
-                    ? "bg-emerald-600 text-white"
-                    : "bg-slate-900 text-slate-400 hover:text-white border border-slate-800"
+                    ? "bg-[#14352c] text-white"
+                    : "bg-white text-slate-600 hover:text-slate-900 border border-slate-200"
                 }`}
               >
                 كافة أيام الأسبوع
@@ -537,8 +557,8 @@ export default function StudentSchedulePage() {
                   onClick={() => setSelectedDay(d.key)}
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
                     selectedDay === d.key
-                      ? "bg-emerald-600 text-white"
-                      : "bg-slate-900 text-slate-400 hover:text-white border border-slate-800"
+                      ? "bg-[#14352c] text-white"
+                      : "bg-white text-slate-600 hover:text-slate-900 border border-slate-200"
                   }`}
                 >
                   {d.label}
@@ -551,20 +571,20 @@ export default function StudentSchedulePage() {
               const daySlots = slots.filter((s) => s.dayOfWeek === day.key);
 
               return (
-                <div key={day.key} className="bg-slate-900/80 rounded-2xl border border-slate-800 overflow-hidden shadow-sm">
-                  <div className="px-5 py-3.5 bg-slate-800/60 border-b border-slate-800 flex items-center justify-between">
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      <span className="size-2 rounded-full bg-emerald-400" />
+                <div key={day.key} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+                  <div className="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <span className="size-2 rounded-full bg-emerald-600" />
                       يوم {day.label}
                     </h3>
-                    <span className="text-xs text-slate-400 font-mono">
+                    <span className="text-xs text-slate-500 font-mono">
                       {daySlots.length} محاضرات
                     </span>
                   </div>
 
-                  <div className="p-4 divide-y divide-slate-800/60">
+                  <div className="p-4 divide-y divide-slate-100">
                     {daySlots.length === 0 ? (
-                      <p className="text-center py-6 text-xs text-slate-500">
+                      <p className="text-center py-6 text-xs text-slate-400">
                         لا توجد محاضرات مجدولة لهذا اليوم.
                       </p>
                     ) : (
@@ -575,29 +595,29 @@ export default function StudentSchedulePage() {
                         return (
                           <div
                             key={slot._id}
-                            className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-800/30 px-3 rounded-xl transition"
+                            className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50 px-3 rounded-xl transition"
                           >
                             <div className="space-y-1">
                               <div className="flex items-center gap-2">
-                                <span className="font-bold text-sm text-white">
+                                <span className="font-bold text-sm text-slate-900">
                                   {course?.name}
                                 </span>
-                                <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded font-mono">
+                                <span className="text-[10px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded font-mono font-bold">
                                   {course?.code || "CS"}
                                 </span>
                               </div>
-                              <p className="text-xs text-slate-400 flex items-center gap-3">
-                                <span>الأستاذ: {doctor?.name || "مقرر القسم"}</span>
+                              <p className="text-xs text-slate-500 flex items-center gap-3">
+                                <span>الأستاذ: {doctor?.name || "أستاذ المادة"}</span>
                                 <span>•</span>
                                 <span className="flex items-center gap-1">
-                                  <MapPin className="w-3.5 h-3.5 text-slate-500" />
+                                  <MapPin className="w-3.5 h-3.5 text-slate-400" />
                                   {slot.room || "قاعة الخوارزمي"} ({slot.building || "العلوم"})
                                 </span>
                               </p>
                             </div>
 
                             <div className="flex items-center gap-2 self-start sm:self-auto font-mono text-xs">
-                              <span className="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200">
+                              <span className="px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-800 font-bold">
                                 {slot.startTime} - {slot.endTime || "نهاية المحاضرة"}
                               </span>
                             </div>

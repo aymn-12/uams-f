@@ -6,7 +6,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { getStoredUser, User } from "@/lib/auth";
 import { smartCache } from "@/lib/cache";
-import DoctorNav from "@/components/DoctorNav";
+import Navbar from '@/components/Navbar';
 import Dialog from "@/components/Dialog";
 import CustomSelect, { SelectOption } from "@/components/CustomSelect";
 import {
@@ -32,6 +32,10 @@ import {
   Layers,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
+  FileSpreadsheet,
+  Download,
+  ExternalLink,
   Eye,
 } from "lucide-react";
 
@@ -76,9 +80,40 @@ function DoctorCoursesContent() {
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [studyTypeFilter, setStudyTypeFilter] = useState<string>("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "WARNING" | "SAFE">("ALL");
+  const [exportingExcel, setExportingExcel] = useState(false);
 
   // Selected Student for Profile Modal
   const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
+
+  // Export Section Attendance to Excel
+  const handleExportExcel = async () => {
+    if (!selectedSectionId) return;
+    setExportingExcel(true);
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("uams_access_token") : null;
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+      const res = await fetch(`${apiBase}/reports/attendance/${selectedSectionId}/excel`, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (!res.ok) throw new Error("تعذر تحميل كشف الإكسل من الخادم.");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `كشف_شعبة_${activeSectionObj?.sectionNumber || "1"}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(err.message || "حدث خطأ أثناء تصدير ملف الإكسل");
+    } finally {
+      setExportingExcel(false);
+    }
+  };
 
   // Initialize from auth & search parameters
   useEffect(() => {
@@ -201,6 +236,13 @@ function DoctorCoursesContent() {
     return sections.find((s) => s._id === selectedSectionId) || sections[0] || null;
   }, [sections, selectedSectionId]);
 
+  // At-Risk Students Count (Warnings / Deprived)
+  const atRiskCount = useMemo(() => {
+    return studentsList.filter(
+      (s) => s.warningLevel === "WARNING" || s.warningLevel === "DEPRIVED" || s.warningLevel === "ALERT"
+    ).length;
+  }, [studentsList]);
+
   // Filtered Students List
   const filteredStudents = useMemo(() => {
     return studentsList.filter((st) => {
@@ -213,9 +255,16 @@ function DoctorCoursesContent() {
       const matchStudyType =
         studyTypeFilter === "ALL" || st.studyType === studyTypeFilter;
 
-      return matchQuery && matchStudyType;
+      const matchStatus =
+        statusFilter === "ALL"
+          ? true
+          : statusFilter === "WARNING"
+          ? st.warningLevel === "WARNING" || st.warningLevel === "DEPRIVED" || st.warningLevel === "ALERT"
+          : st.warningLevel === "SAFE" || !st.warningLevel;
+
+      return matchQuery && matchStudyType && matchStatus;
     });
-  }, [studentsList, searchQuery, studyTypeFilter]);
+  }, [studentsList, searchQuery, studyTypeFilter, statusFilter]);
 
   // Schedule Slots grouped by Day
   const slotsByDay = useMemo(() => {
@@ -261,7 +310,7 @@ function DoctorCoursesContent() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col" dir="rtl">
-      <DoctorNav user={user} />
+      <Navbar user={user} />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         {/* Navigation Breadcrumb & Header */}
@@ -659,8 +708,8 @@ function DoctorCoursesContent() {
           <div className="space-y-6">
             {/* Filter & Controls Bar */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="w-full md:w-80">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div className="w-full lg:w-80">
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
                     اختر الشعبة الدراسية:
                   </label>
@@ -676,24 +725,73 @@ function DoctorCoursesContent() {
                   />
                 </div>
 
+                {/* Quick Actions Hub for Current Section */}
+                <div className="flex flex-wrap items-center gap-2 pt-1 lg:pt-0">
+                  {/* Export Excel Button */}
+                  <button
+                    type="button"
+                    onClick={handleExportExcel}
+                    disabled={exportingExcel || studentsList.length === 0}
+                    className="px-3.5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-xs disabled:opacity-50 cursor-pointer"
+                    title="تصدير كشف حضور وغياب الشعبة بملف إكسل رسمي"
+                  >
+                    {exportingExcel ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <FileSpreadsheet className="w-3.5 h-3.5" />
+                    )}
+                    <span>تصدير كشف Excel</span>
+                  </button>
+
+                  {/* Direct Link to Grades & Coursework */}
+                  <Link
+                    href={`/dashboard/doctor/grades?sectionId=${selectedSectionId}`}
+                    className="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition flex items-center gap-1.5 border border-slate-200"
+                    title="رصد درجات السعي والامتحانات لهذه الشعبة"
+                  >
+                    <Award className="w-3.5 h-3.5 text-[#14352c]" />
+                    <span>رصد السعي</span>
+                  </Link>
+
+                  {/* Direct Link to Attendance Sessions */}
+                  <Link
+                    href="/dashboard/doctor/attendance"
+                    className="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition flex items-center gap-1.5 border border-slate-200"
+                    title="فتح جلسة حضور ذكية بـ QR"
+                  >
+                    <QrCode className="w-3.5 h-3.5 text-[#14352c]" />
+                    <span>جلسة حضور QR</span>
+                  </Link>
+                </div>
+
                 {/* Quick Roster Stats */}
-                <div className="flex flex-wrap items-center gap-3 pt-2 md:pt-0">
-                  <div className="px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-center">
-                    <span className="text-[10px] text-slate-500 block">المسجلين بالشعبة</span>
-                    <span className={`text-sm font-bold text-slate-900 ${mono.className}`}>
+                <div className="flex flex-wrap items-center gap-2 pt-2 lg:pt-0">
+                  <div className="px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-center">
+                    <span className="text-[10px] text-slate-500 block">المسجلين</span>
+                    <span className={`text-xs font-bold text-slate-900 ${mono.className}`}>
                       {studentsList.length} طالب
                     </span>
                   </div>
-                  <div className="px-4 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
-                    <span className="text-[10px] text-emerald-700 block">دراسة صباحية</span>
-                    <span className={`text-sm font-bold text-emerald-900 ${mono.className}`}>
+                  <div className="px-3.5 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
+                    <span className="text-[10px] text-emerald-700 block">صباحي</span>
+                    <span className={`text-xs font-bold text-emerald-900 ${mono.className}`}>
                       {studentsList.filter((s) => s.studyType === "MORNING").length}
                     </span>
                   </div>
-                  <div className="px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-center">
-                    <span className="text-[10px] text-amber-700 block">دراسة مسائية</span>
-                    <span className={`text-sm font-bold text-amber-900 ${mono.className}`}>
+                  <div className="px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-200 text-center">
+                    <span className="text-[10px] text-amber-700 block">مسائي</span>
+                    <span className={`text-xs font-bold text-amber-900 ${mono.className}`}>
                       {studentsList.filter((s) => s.studyType === "EVENING").length}
+                    </span>
+                  </div>
+                  <div className={`px-3.5 py-2 rounded-xl border text-center ${
+                    atRiskCount > 0 ? "bg-rose-50 border-rose-200" : "bg-slate-50 border-slate-200"
+                  }`}>
+                    <span className={`text-[10px] block font-bold ${atRiskCount > 0 ? "text-rose-700" : "text-slate-500"}`}>
+                      إنذارات غياب
+                    </span>
+                    <span className={`text-xs font-bold ${mono.className} ${atRiskCount > 0 ? "text-rose-800" : "text-slate-900"}`}>
+                      {atRiskCount} طلاب
                     </span>
                   </div>
                 </div>
@@ -712,10 +810,10 @@ function DoctorCoursesContent() {
                   />
                 </div>
 
-                <div className="flex items-center gap-2 w-full sm:w-auto">
+                <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
                   <button
                     onClick={() => setStudyTypeFilter("ALL")}
-                    className={`px-3 py-2 rounded-xl text-xs font-bold transition flex-1 sm:flex-initial ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
                       studyTypeFilter === "ALL"
                         ? "bg-[#14352c] text-white"
                         : "bg-slate-100 text-slate-700 hover:bg-slate-200"
@@ -725,7 +823,7 @@ function DoctorCoursesContent() {
                   </button>
                   <button
                     onClick={() => setStudyTypeFilter("MORNING")}
-                    className={`px-3 py-2 rounded-xl text-xs font-bold transition flex-1 sm:flex-initial ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
                       studyTypeFilter === "MORNING"
                         ? "bg-[#14352c] text-white"
                         : "bg-slate-100 text-slate-700 hover:bg-slate-200"
@@ -735,13 +833,29 @@ function DoctorCoursesContent() {
                   </button>
                   <button
                     onClick={() => setStudyTypeFilter("EVENING")}
-                    className={`px-3 py-2 rounded-xl text-xs font-bold transition flex-1 sm:flex-initial ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
                       studyTypeFilter === "EVENING"
                         ? "bg-[#14352c] text-white"
                         : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                     }`}
                   >
                     مسائي
+                  </button>
+
+                  {/* Filter by Warning / At-Risk */}
+                  <button
+                    onClick={() => setStatusFilter((prev) => (prev === "WARNING" ? "ALL" : "WARNING"))}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap ${
+                      statusFilter === "WARNING"
+                        ? "bg-rose-700 text-white shadow-xs"
+                        : atRiskCount > 0
+                        ? "bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100"
+                        : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                    }`}
+                    title="تصفية الطلاب الذين وصلوا إلى مرحلة الإنذار أو تجاوزوا حد الحرمان"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <span>المعرضين للحرمان ({atRiskCount})</span>
                   </button>
                 </div>
               </div>
@@ -758,7 +872,7 @@ function DoctorCoursesContent() {
                 <div className="py-16 text-center space-y-3">
                   <Users className="w-10 h-10 text-slate-300 mx-auto" />
                   <h4 className="text-sm font-bold text-slate-700">لا يوجد طلاب مطابقين للبحث</h4>
-                  <p className="text-xs text-slate-500">تأكد من نص البحث أو حدد شعبة أخرى.</p>
+                  <p className="text-xs text-slate-500">تأكد من نص البحث أو خيارات التصفية المحددة.</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -768,11 +882,10 @@ function DoctorCoursesContent() {
                         <th className="py-3.5 px-4">#</th>
                         <th className="py-3.5 px-4">الطالب والبريد الرسمي</th>
                         <th className="py-3.5 px-4">الرقم الجامعي (ID)</th>
-                        <th className="py-3.5 px-4">المرحلة الدراسية</th>
-                        <th className="py-3.5 px-4">نوع الدراسة</th>
+                        <th className="py-3.5 px-4">المرحلة والدراسة</th>
+                        <th className="py-3.5 px-4">سجل الحضور والغياب</th>
                         <th className="py-3.5 px-4">سنة القبول</th>
-                        <th className="py-3.5 px-4">الحالة</th>
-                        <th className="py-3.5 px-4 text-center">الإجراء</th>
+                        <th className="py-3.5 px-4 text-center">إجراءات سريعة</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -802,41 +915,70 @@ function DoctorCoursesContent() {
                             {st.studentId || "N/A"}
                           </td>
                           <td className="py-3 px-4">
-                            <span className="px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 font-medium">
-                              {STAGE_LABELS[st.stage] || `المرحلة ${st.stage || 1}`}
-                            </span>
+                            <div className="space-y-0.5">
+                              <span className="text-slate-800 font-medium block">
+                                {STAGE_LABELS[st.stage] || `المرحلة ${st.stage || 1}`}
+                              </span>
+                              <span
+                                className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                                  st.studyType === "MORNING"
+                                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                                    : "bg-amber-50 text-amber-800 border border-amber-200"
+                                }`}
+                              >
+                                {st.studyType === "MORNING" ? "صباحي" : "مسائي"}
+                              </span>
+                            </div>
                           </td>
                           <td className="py-3 px-4">
-                            <span
-                              className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                                st.studyType === "MORNING"
-                                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                                  : "bg-amber-50 text-amber-800 border border-amber-200"
-                              }`}
-                            >
-                              {st.studyType === "MORNING" ? "دراسة صباحية" : "دراسة مسائية"}
-                            </span>
+                            {st.warningLevel === "DEPRIVED" ? (
+                              <span className="inline-flex items-center gap-1 text-rose-700 font-bold text-[11px] bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md">
+                                <AlertCircle className="w-3 h-3" />
+                                تجاوز الحرمان ({st.absentCount || 0}/{st.maxAbsences || 6})
+                              </span>
+                            ) : st.warningLevel === "WARNING" ? (
+                              <span className="inline-flex items-center gap-1 text-amber-700 font-bold text-[11px] bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                                <AlertTriangle className="w-3 h-3" />
+                                إنذار نهائي ({st.absentCount || 0}/{st.maxAbsences || 6})
+                              </span>
+                            ) : st.warningLevel === "ALERT" ? (
+                              <span className="inline-flex items-center gap-1 text-amber-700 font-semibold text-[11px] bg-amber-50/60 border border-amber-200 px-2 py-0.5 rounded-md">
+                                <AlertTriangle className="w-3 h-3" />
+                                إنذار أول ({st.absentCount || 0}/{st.maxAbsences || 6})
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-emerald-700 font-medium text-[11px]">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>منتظم ({st.absentCount || 0} غياب)</span>
+                              </span>
+                            )}
                           </td>
                           <td className="py-3 px-4 font-mono text-slate-600">
                             {st.admissionYear || "2023"}
                           </td>
-                          <td className="py-3 px-4">
-                            <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold text-[11px]">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              منتظم
-                            </span>
-                          </td>
                           <td className="py-3 px-4 text-center">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedStudent(st);
-                              }}
-                              className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-[#14352c] hover:text-white text-slate-700 font-bold transition flex items-center gap-1 mx-auto text-xs"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              تفاصيل
-                            </button>
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedStudent(st);
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-[#14352c] hover:text-white text-slate-700 font-bold transition flex items-center gap-1 text-xs cursor-pointer"
+                                title="عرض ملف الطالب"
+                              >
+                                <Eye className="w-3 h-3" />
+                                <span>تفاصيل</span>
+                              </button>
+                              <Link
+                                href={`/dashboard/doctor/grades?sectionId=${selectedSectionId}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-[#14352c] font-bold transition flex items-center gap-1 text-xs border border-emerald-200"
+                                title="رصد الدرجات والسعي للطالب"
+                              >
+                                <Award className="w-3 h-3" />
+                                <span>السعي</span>
+                              </Link>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -911,12 +1053,66 @@ function DoctorCoursesContent() {
               </div>
             </div>
 
+            {/* Attendance & Warning Summary */}
+            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-900">
+                <span className="flex items-center gap-1.5">
+                  <QrCode className="w-3.5 h-3.5 text-[#14352c]" />
+                  سجل الحضور والالتزام:
+                </span>
+                <span
+                  className={`text-[11px] px-2 py-0.5 rounded font-bold ${
+                    selectedStudent.warningLevel === "DEPRIVED"
+                      ? "bg-rose-100 text-rose-800"
+                      : selectedStudent.warningLevel === "WARNING"
+                      ? "bg-amber-100 text-amber-800"
+                      : selectedStudent.warningLevel === "ALERT"
+                      ? "bg-amber-50 text-amber-800 border border-amber-200"
+                      : "bg-emerald-100 text-emerald-800"
+                  }`}
+                >
+                  {selectedStudent.warningLevel === "DEPRIVED"
+                    ? "تجاوز حد الحرمان الأكاديمي"
+                    : selectedStudent.warningLevel === "WARNING"
+                    ? "إنذار غياب نهائي"
+                    : selectedStudent.warningLevel === "ALERT"
+                    ? "إنذار أول"
+                    : "حالة الدوام منتظمة"}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                <div className="p-2 bg-white rounded-lg border border-slate-200">
+                  <span className="text-[10px] text-slate-500 block">الجلسات الكلية</span>
+                  <span className="font-bold text-slate-900 font-mono">{selectedStudent.totalSessions || 0}</span>
+                </div>
+                <div className="p-2 bg-white rounded-lg border border-slate-200">
+                  <span className="text-[10px] text-emerald-700 block">الحضور الفعلي</span>
+                  <span className="font-bold text-emerald-800 font-mono">{selectedStudent.presentCount || 0}</span>
+                </div>
+                <div className="p-2 bg-white rounded-lg border border-slate-200">
+                  <span className="text-[10px] text-rose-700 block">عدد الغيابات</span>
+                  <span className="font-bold text-rose-800 font-mono">
+                    {selectedStudent.absentCount || 0} من {selectedStudent.maxAbsences || 6}
+                  </span>
+                </div>
+              </div>
+            </div>
+
             {/* Modal Actions */}
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+              <Link
+                href={`/dashboard/doctor/grades?sectionId=${selectedSectionId}`}
+                className="px-4 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#14352c] border border-emerald-200 text-xs font-bold transition flex items-center gap-1.5"
+              >
+                <Award className="w-3.5 h-3.5" />
+                <span>رصد سعي الطالب</span>
+              </Link>
+
               <button
                 type="button"
                 onClick={() => setSelectedStudent(null)}
-                className="px-5 py-2.5 rounded-xl bg-[#14352c] hover:bg-[#1b4a3d] text-white text-xs font-bold transition shadow-xs"
+                className="px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
               >
                 إغلاق
               </button>

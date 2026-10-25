@@ -6,7 +6,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { smartCache } from "@/lib/cache";
 import { getStoredUser, User } from "@/lib/auth";
-import DoctorNav from "@/components/DoctorNav";
+import Navbar from '@/components/Navbar';
 import Dialog from "@/components/Dialog";
 import CustomSelect from "@/components/CustomSelect";
 import {
@@ -35,6 +35,7 @@ export default function DoctorAttendancePage() {
   const [activeSession, setActiveSession] = useState<any | null>(null);
   const [creating, setCreating] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [rotating, setRotating] = useState(false);
   const [attendees, setAttendees] = useState<any[]>([]);
 
   // Dialog
@@ -54,16 +55,15 @@ export default function DoctorAttendancePage() {
     if (!secId) return;
     try {
       const res = await apiFetch(`/attendance/sections/${secId}/active-session`);
-      if (res.data) {
-        const s = res.data;
+      const s = res.data || res.session || (res._id ? res : null);
+      if (s) {
         const sId = s._id || s.session?._id;
         setActiveSession({ ...s, _id: sId });
         if (sId) {
           apiFetch(`/attendance/sessions/${sId}/live`)
             .then((liveRes) => {
-              if (liveRes.data) {
-                setAttendees(liveRes.data.attendees || []);
-              }
+              const list = liveRes.data?.attendees || liveRes.attendees || [];
+              setAttendees(list);
             })
             .catch(() => {});
         }
@@ -93,8 +93,8 @@ export default function DoctorAttendancePage() {
         const secList = docRes.data?.sections || [];
         setSections(secList);
 
-        if (activeRes.data) {
-          const s = activeRes.data;
+        const s = activeRes.data || activeRes.session || (activeRes._id ? activeRes : null);
+        if (s) {
           const sId = s._id || s.session?._id;
           setActiveSession({ ...s, _id: sId });
           if (s.section) {
@@ -105,13 +105,14 @@ export default function DoctorAttendancePage() {
           if (sId) {
             apiFetch(`/attendance/sessions/${sId}/live`)
               .then((liveRes) => {
-                if (liveRes.data) setAttendees(liveRes.data.attendees || []);
+                const list = liveRes.data?.attendees || liveRes.attendees || [];
+                setAttendees(list);
               })
               .catch(() => {});
           }
         } else if (secList.length > 0) {
           const remembered = smartCache.getWorkspace("doctor_selected_section", "");
-          const activeSecId = secList.some((s: any) => s._id === remembered) ? remembered : secList[0]._id;
+          const activeSecId = secList.some((sec: any) => sec._id === remembered) ? remembered : secList[0]._id;
           setSelectedSection(activeSecId);
           checkActiveSession(activeSecId);
         }
@@ -134,14 +135,16 @@ export default function DoctorAttendancePage() {
     const interval = setInterval(() => {
       apiFetch(`/attendance/sessions/${sId}/live`)
         .then((res) => {
-          if (res.data) {
+          const payload = res.data || res;
+          if (payload) {
             setActiveSession((prev: any) => ({
               ...prev,
               _id: sId,
-              qrImage: res.data.qrImage || prev?.qrImage,
-              token: res.data.token || prev?.token,
+              qrImage: payload.qrImage || prev?.qrImage,
+              token: payload.token || prev?.token,
             }));
-            setAttendees(res.data.attendees || []);
+            const list = payload.attendees || [];
+            setAttendees(list);
           }
         })
         .catch(() => {});
@@ -150,9 +153,65 @@ export default function DoctorAttendancePage() {
     return () => clearInterval(interval);
   }, [activeSession?._id, activeSession?.session?._id]);
 
+  // Rotate dynamic token manually or on schedule
+  const handleRotateToken = useCallback(async () => {
+    const sId = activeSession?._id || activeSession?.session?._id;
+    if (!sId || rotating) return;
+    setRotating(true);
+    try {
+      const res = await apiFetch(`/attendance/sessions/${sId}/rotate-token`, {
+        method: "POST",
+      });
+      const data = res.data || res;
+      if (data?.token && data?.qrImage) {
+        setActiveSession((prev: any) => ({
+          ...prev,
+          qrImage: data.qrImage,
+          token: data.token,
+        }));
+      }
+    } catch {
+      // Ignore rotation failure gracefully
+    } finally {
+      setRotating(false);
+    }
+  }, [activeSession?._id, activeSession?.session?._id, rotating]);
+
+  // Periodic rotation every 60 seconds while session is active
+  useEffect(() => {
+    const sId = activeSession?._id || activeSession?.session?._id;
+    if (!sId) return;
+
+    const rotInterval = setInterval(() => {
+      handleRotateToken();
+    }, 60000);
+
+    return () => clearInterval(rotInterval);
+  }, [activeSession?._id, activeSession?.session?._id, handleRotateToken]);
+
   const handleStartSession = async () => {
     if (!selectedSection) return;
     setCreating(true);
+
+    let lat = 33.3128;
+    let lng = 44.3615;
+
+    // Detect actual coordinates if device supports geolocation
+    if (typeof window !== "undefined" && navigator.geolocation) {
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 3000,
+            maximumAge: 60000,
+          });
+        });
+        lat = pos.coords.latitude;
+        lng = pos.coords.longitude;
+      } catch {
+        // Fallback to campus default coordinates on timeout or denied permission
+      }
+    }
 
     try {
       const res = await apiFetch("/attendance/sessions", {
@@ -161,19 +220,24 @@ export default function DoctorAttendancePage() {
           sectionId: selectedSection,
           sessionType: "LECTURE",
           durationMinutes: 90,
-          latitude: 33.3128,
-          longitude: 44.3615,
+          geoFence: {
+            latitude: lat,
+            longitude: lng,
+            radiusMeters: 50,
+          },
+          latitude: lat,
+          longitude: lng,
           radiusMeters: 50,
         }),
       });
 
-      const sData = res.data?.session || res.data;
-      const sId = sData?._id || res.data?._id;
+      const sData = res.data?.session || res.data || res.session;
+      const sId = sData?._id || res.data?._id || res._id;
       setActiveSession({
         ...sData,
         _id: sId,
-        qrImage: res.data?.qrImage,
-        token: res.data?.token,
+        qrImage: res.data?.qrImage || res.qrImage,
+        token: res.data?.token || res.token,
       });
       setAttendees([]);
       setDialog({
@@ -250,7 +314,7 @@ export default function DoctorAttendancePage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col" dir="rtl">
-      <DoctorNav user={user} />
+      <Navbar user={user} />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         {/* Navigation Breadcrumb & Header */}
@@ -325,17 +389,27 @@ export default function DoctorAttendancePage() {
                 </div>
               )}
 
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex flex-wrap items-center justify-center gap-3 text-xs">
                   <span className={`bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 text-slate-800 ${mono.className}`}>
                     Session ID: {activeSession._id}
                   </span>
                   <span className={`bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 text-[#14352c] font-bold ${mono.className}`}>
-                    Token: {activeSession.token || "******"}
+                    Token: {activeSession.token ? `${activeSession.token.slice(0, 10)}...` : "******"}
                   </span>
+                  <button
+                    type="button"
+                    onClick={handleRotateToken}
+                    disabled={rotating}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#14352c] font-bold border border-emerald-200 transition flex items-center gap-1.5 text-xs cursor-pointer disabled:opacity-50"
+                    title="توليد رمز استجابة جديد فوراً لمنع تسريب الرمز خارج القاعة"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${rotating ? "animate-spin" : ""}`} />
+                    <span>تجديد الرمز اللحظي</span>
+                  </button>
                 </div>
                 <p className="text-xs text-slate-500">
-                  الرمز يتجدد أوتوماتيكياً كل دقيقة لمنع تصوير الشاشة وتمريرها بين الطلبة.
+                  الرمز موقّع رقمياً ويتجدد أوتوماتيكياً كل 60 ثانية لمنع تصوير الشاشة وتمريرها بين الطلبة.
                 </p>
               </div>
             </div>
@@ -406,10 +480,10 @@ export default function DoctorAttendancePage() {
         type={dialog.type}
       >
         <div className="space-y-4 text-center">
-          <p className="text-xs text-slate-300">{dialog.message}</p>
+          <p className="text-sm text-slate-700">{dialog.message}</p>
           <button
             onClick={() => setDialog((prev) => ({ ...prev, isOpen: false }))}
-            className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition"
+            className="w-full py-2.5 rounded-xl bg-[#14352c] hover:bg-[#1b4a3d] text-white text-xs font-bold transition shadow-xs cursor-pointer"
           >
             إغلاق
           </button>

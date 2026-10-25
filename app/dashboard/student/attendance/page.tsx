@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { smartCache } from "@/lib/cache";
 import { getStoredUser, User } from "@/lib/auth";
-import StudentNav from "@/components/StudentNav";
+import Navbar from '@/components/Navbar';
 import { Check, MapPin, RefreshCw } from "lucide-react";
 
 const mono = { className: "font-mono" };
@@ -282,11 +282,24 @@ export default function StudentAttendancePage() {
       }
 
       setPhase("sending");
+      let storedDeviceId = typeof window !== "undefined" ? localStorage.getItem("uams_device_id") : null;
+      if (!storedDeviceId) {
+        storedDeviceId = "dev-" + Math.random().toString(36).substring(2, 12);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("uams_device_id", storedDeviceId);
+        }
+      }
+
       await apiFetch("/attendance/check-in", {
         method: "POST",
         body: JSON.stringify({
           sessionId: sessionId.trim(),
           token: token.trim(),
+          deviceId: storedDeviceId,
+          coordinates: {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          },
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
         }),
@@ -329,7 +342,7 @@ export default function StudentAttendancePage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <StudentNav user={user} />
+      <Navbar user={user} />
 
       <main className="max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       <PageHeader title="تسجيل الحضور" description="سجّل حضورك في المحاضرة وتابع سجل حضورك.">
