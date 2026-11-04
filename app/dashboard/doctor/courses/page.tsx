@@ -66,6 +66,13 @@ function DoctorCoursesContent() {
   const [user, setUser] = useState<User | null>(null);
   const [sections, setSections] = useState<any[]>([]);
   const [scheduleSlots, setScheduleSlots] = useState<any[]>([]);
+  const [activeDays, setActiveDays] = useState<string[]>([
+    "SUNDAY",
+    "MONDAY",
+    "TUESDAY",
+    "WEDNESDAY",
+    "THURSDAY",
+  ]);
   const [loading, setLoading] = useState(true);
 
   // Active Tab: "courses" | "schedule" | "students"
@@ -619,7 +626,7 @@ function DoctorCoursesContent() {
 
             {/* Days Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {(["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY"] as const).map(
+              {activeDays.map(
                 (dayKey) => {
                   const daySlots = slotsByDay[dayKey] || [];
                   const isToday =
