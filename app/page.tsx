@@ -84,9 +84,13 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const user = await loginUser(email.trim().toLowerCase(), password);
-      if (user.role === "STUDENT") router.push("/dashboard/student");
-      else if (user.role === "DOCTOR") router.push("/dashboard/doctor");
-      else router.push("/dashboard/admin");
+      const targetUrl =
+        user.role === "STUDENT"
+          ? "/dashboard/student"
+          : user.role === "DOCTOR"
+          ? "/dashboard/doctor"
+          : "/dashboard/admin";
+      window.location.href = targetUrl;
     } catch (err: any) {
       setError(err?.message || "تعذّر تسجيل الدخول. تحقق من البيانات وحاول مرة أخرى.");
       setPassword("");

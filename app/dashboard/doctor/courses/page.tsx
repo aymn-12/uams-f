@@ -6,7 +6,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { getStoredUser, User } from "@/lib/auth";
 import { smartCache } from "@/lib/cache";
-import Navbar from '@/components/Navbar';
+import Navbar from "@/components/Navbar";
 import Dialog from "@/components/Dialog";
 import CustomSelect, { SelectOption } from "@/components/CustomSelect";
 import {
@@ -18,28 +18,33 @@ import {
   Clock,
   MapPin,
   GraduationCap,
-  ShieldCheck,
   RefreshCw,
   QrCode,
   Award,
   UploadCloud,
-  FileText,
+  FileSpreadsheet,
+  CalendarDays,
   Printer,
   ChevronLeft,
   Mail,
-  UserCheck,
   Building,
-  Layers,
   CheckCircle2,
   AlertCircle,
   AlertTriangle,
-  FileSpreadsheet,
-  Download,
-  ExternalLink,
+  ArrowUpRight,
   Eye,
+  Sparkles,
+  Layers,
 } from "lucide-react";
 
 const mono = { className: "font-mono" };
+
+const toArray = (val: any): any[] => {
+  if (Array.isArray(val)) return val;
+  if (val && Array.isArray(val.data)) return val.data;
+  if (val?.data && Array.isArray(val.data.data)) return val.data.data;
+  return [];
+};
 
 const DAY_LABELS: Record<string, string> = {
   SUNDAY: "الأحد",
@@ -66,63 +71,26 @@ function DoctorCoursesContent() {
   const [user, setUser] = useState<User | null>(null);
   const [sections, setSections] = useState<any[]>([]);
   const [scheduleSlots, setScheduleSlots] = useState<any[]>([]);
-  const [activeDays, setActiveDays] = useState<string[]>([
-    "SUNDAY",
-    "MONDAY",
-    "TUESDAY",
-    "WEDNESDAY",
-    "THURSDAY",
-  ]);
   const [loading, setLoading] = useState(true);
 
-  // Active Tab: "courses" | "schedule" | "students"
-  const [activeTab, setActiveTab] = useState<"courses" | "schedule" | "students">("courses");
-
-  // Filter & Selection State
+  // Filter & Search State
   const [selectedStage, setSelectedStage] = useState<string>("ALL");
-  const [selectedSectionId, setSelectedSectionId] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState("");
 
-  // Student Roster State
+  // Student Roster Modal State
+  const [rosterModalOpen, setRosterModalOpen] = useState(false);
+  const [activeSectionId, setActiveSectionId] = useState<string>("");
   const [studentsList, setStudentsList] = useState<any[]>([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [studentSearch, setStudentSearch] = useState("");
   const [studyTypeFilter, setStudyTypeFilter] = useState<string>("ALL");
-  const [statusFilter, setStatusFilter] = useState<"ALL" | "WARNING" | "SAFE">("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "WARNING">("ALL");
   const [exportingExcel, setExportingExcel] = useState(false);
 
-  // Selected Student for Profile Modal
+  // Selected Student Profile Modal State
   const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
 
-  // Export Section Attendance to Excel
-  const handleExportExcel = async () => {
-    if (!selectedSectionId) return;
-    setExportingExcel(true);
-    try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("uams_access_token") : null;
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
-      const res = await fetch(`${apiBase}/reports/attendance/${selectedSectionId}/excel`, {
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
-      if (!res.ok) throw new Error("تعذر تحميل كشف الإكسل من الخادم.");
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `كشف_شعبة_${activeSectionObj?.sectionNumber || "1"}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (err: any) {
-      alert(err.message || "حدث خطأ أثناء تصدير ملف الإكسل");
-    } finally {
-      setExportingExcel(false);
-    }
-  };
-
-  // Initialize from auth & search parameters
+  // Initialize Auth & query params
   useEffect(() => {
     const stored = getStoredUser();
     if (!stored) {
@@ -131,52 +99,44 @@ function DoctorCoursesContent() {
     }
     setUser(stored);
 
-    const paramTab = searchParams.get("tab");
-    if (paramTab === "schedule" || paramTab === "students" || paramTab === "courses") {
-      setActiveTab(paramTab);
-    }
-
     const paramSection = searchParams.get("sectionId");
     if (paramSection) {
-      setSelectedSectionId(paramSection);
+      setActiveSectionId(paramSection);
+      setRosterModalOpen(true);
     }
   }, [router, searchParams]);
 
-  // Load Sections & Schedule
+  // Load Sections & Schedule Slots
   useEffect(() => {
     let isMounted = true;
 
     async function loadData() {
       try {
-        // Try Cache First
-        const cachedSections = smartCache.get<any[]>("/doctor/sections");
+        const cachedSections = smartCache.get<any>("/doctor/sections");
         if (cachedSections?.data && isMounted) {
-          setSections(cachedSections.data);
-          if (!selectedSectionId && cachedSections.data.length > 0) {
-            setSelectedSectionId(cachedSections.data[0]._id);
+          const arr = toArray(cachedSections.data);
+          if (arr.length > 0) {
+            setSections(arr);
+            setLoading(false);
           }
-          setLoading(false);
         }
 
-        const cachedSlots = smartCache.get<any[]>("/doctor/schedule");
+        const cachedSlots = smartCache.get<any>("/doctor/schedule");
         if (cachedSlots?.data && isMounted) {
-          setScheduleSlots(cachedSlots.data);
+          const arrSlots = toArray(cachedSlots.data);
+          if (arrSlots.length > 0) {
+            setScheduleSlots(arrSlots);
+          }
         }
 
-        // Fresh Fetch
         const [sectionsRes, scheduleRes] = await Promise.all([
           apiFetch("/doctor/sections"),
           apiFetch("/doctor/schedule").catch(() => ({ data: [] })),
         ]);
 
         if (isMounted) {
-          const fetchedSections = sectionsRes.data || [];
-          setSections(fetchedSections);
-          setScheduleSlots(scheduleRes.data || []);
-
-          if (!selectedSectionId && fetchedSections.length > 0) {
-            setSelectedSectionId(fetchedSections[0]._id);
-          }
+          setSections(toArray(sectionsRes));
+          setScheduleSlots(toArray(scheduleRes));
         }
       } catch (err) {
         console.error("Failed to load doctor academic data:", err);
@@ -191,28 +151,22 @@ function DoctorCoursesContent() {
     };
   }, []);
 
-  // Load Student Roster when section changes
+  // Load Student Roster when activeSectionId opens
   useEffect(() => {
-    if (!selectedSectionId) return;
+    if (!activeSectionId || !rosterModalOpen) return;
 
     let isMounted = true;
     setStudentsLoading(true);
 
-    const cacheKey = `/doctor/sections/${selectedSectionId}/students`;
-    const cachedRoster = smartCache.get<any>(cacheKey);
-    if (cachedRoster?.data && isMounted) {
-      setStudentsList(cachedRoster.data.data || []);
-      setStudentsLoading(false);
-    }
-
-    apiFetch(`/doctor/sections/${selectedSectionId}/students`)
+    apiFetch(`/doctor/sections/${activeSectionId}/students`)
       .then((res) => {
         if (isMounted) {
-          setStudentsList(res.data || []);
+          setStudentsList(toArray(res));
         }
       })
       .catch((err) => {
         console.error("Failed to fetch student roster:", err);
+        if (isMounted) setStudentsList([]);
       })
       .finally(() => {
         if (isMounted) setStudentsLoading(false);
@@ -221,91 +175,109 @@ function DoctorCoursesContent() {
     return () => {
       isMounted = false;
     };
-  }, [selectedSectionId]);
+  }, [activeSectionId, rosterModalOpen]);
 
-  // Section options for CustomSelect
-  const sectionOptions: SelectOption[] = useMemo(() => {
-    return sections.map((sec) => ({
-      value: sec._id,
-      label: `${sec.course?.name || "المقرر"} (شعبة ${sec.sectionNumber || "1"})`,
-      subLabel: `المرحلة ${sec.course?.stage || 1} • ${sec.enrolledCount || 0} طالب`,
-    }));
-  }, [sections]);
+  // Export Section Attendance to Excel
+  const handleExportExcel = async (secId: string, secNumber?: string) => {
+    const targetId = secId || activeSectionId;
+    if (!targetId) return;
+    setExportingExcel(true);
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("uams_access_token") : null;
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+      const res = await fetch(`${apiBase}/reports/attendance/${targetId}/excel`, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (!res.ok) throw new Error("تعذر تحميل كشف الإكسل من الخادم.");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `كشف_حضور_شعبة_${secNumber || "1"}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(err.message || "حدث خطأ أثناء تصدير ملف الإكسل");
+    } finally {
+      setExportingExcel(false);
+    }
+  };
 
-  // Filtered Sections by Stage
-  const filteredSections = useMemo(() => {
-    if (selectedStage === "ALL") return sections;
-    return sections.filter((s) => String(s.course?.stage) === selectedStage);
-  }, [sections, selectedStage]);
+  // Guaranteed safe arrays
+  const sectionsList = useMemo(() => toArray(sections), [sections]);
+  const slotsList = useMemo(() => toArray(scheduleSlots), [scheduleSlots]);
+  const students = useMemo(() => toArray(studentsList), [studentsList]);
 
-  // Selected section object
-  const activeSectionObj = useMemo(() => {
-    return sections.find((s) => s._id === selectedSectionId) || sections[0] || null;
-  }, [sections, selectedSectionId]);
-
-  // At-Risk Students Count (Warnings / Deprived)
-  const atRiskCount = useMemo(() => {
-    return studentsList.filter(
-      (s) => s.warningLevel === "WARNING" || s.warningLevel === "DEPRIVED" || s.warningLevel === "ALERT"
-    ).length;
-  }, [studentsList]);
-
-  // Filtered Students List
-  const filteredStudents = useMemo(() => {
-    return studentsList.filter((st) => {
-      const matchQuery =
-        !searchQuery.trim() ||
-        (st.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (st.studentId || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (st.email || "").toLowerCase().includes(searchQuery.toLowerCase());
-
-      const matchStudyType =
-        studyTypeFilter === "ALL" || st.studyType === studyTypeFilter;
-
-      const matchStatus =
-        statusFilter === "ALL"
-          ? true
-          : statusFilter === "WARNING"
-          ? st.warningLevel === "WARNING" || st.warningLevel === "DEPRIVED" || st.warningLevel === "ALERT"
-          : st.warningLevel === "SAFE" || !st.warningLevel;
-
-      return matchQuery && matchStudyType && matchStatus;
-    });
-  }, [studentsList, searchQuery, studyTypeFilter, statusFilter]);
-
-  // Schedule Slots grouped by Day
-  const slotsByDay = useMemo(() => {
-    const map: Record<string, any[]> = {
-      SUNDAY: [],
-      MONDAY: [],
-      TUESDAY: [],
-      WEDNESDAY: [],
-      THURSDAY: [],
-    };
-
-    scheduleSlots.forEach((slot) => {
-      const day = (slot.dayOfWeek || "").toUpperCase();
-      if (map[day]) {
-        map[day].push(slot);
-      }
-    });
-
-    return map;
-  }, [scheduleSlots]);
+  // Active Section Object
+  const currentActiveSection = useMemo(() => {
+    return sectionsList.find((s) => s._id === activeSectionId) || null;
+  }, [sectionsList, activeSectionId]);
 
   // Unique stages doctor teaches
   const stagesList = useMemo(() => {
     const set = new Set<number>();
-    sections.forEach((s) => {
+    sectionsList.forEach((s) => {
       if (s.course?.stage) set.add(s.course.stage);
     });
     return Array.from(set).sort((a, b) => a - b);
-  }, [sections]);
+  }, [sectionsList]);
+
+  // Filtered Sections by Stage & Search Query
+  const filteredSections = useMemo(() => {
+    return sectionsList.filter((s) => {
+      const matchStage = selectedStage === "ALL" || String(s.course?.stage) === selectedStage;
+      const matchSearch =
+        !searchQuery.trim() ||
+        (s.course?.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (s.course?.code || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (s.sectionNumber || "").toLowerCase().includes(searchQuery.toLowerCase());
+      return matchStage && matchSearch;
+    });
+  }, [sectionsList, selectedStage, searchQuery]);
+
+  // Today's Lectures
+  const todayKey = useMemo(() => {
+    return new Date().toLocaleDateString("en-US", { weekday: "long" }).toUpperCase();
+  }, []);
+
+  const todaySlots = useMemo(() => {
+    return slotsList.filter((slot) => (slot.dayOfWeek || "").toUpperCase() === todayKey);
+  }, [slotsList, todayKey]);
 
   // Total Students Taught
   const totalStudentsCount = useMemo(() => {
-    return sections.reduce((acc, curr) => acc + (curr.enrolledCount || 0), 0);
-  }, [sections]);
+    return sectionsList.reduce((acc, curr) => acc + (curr.enrolledCount || 0), 0);
+  }, [sectionsList]);
+
+  // Filtered Students in Roster Modal
+  const filteredStudents = useMemo(() => {
+    return students.filter((st) => {
+      const matchQuery =
+        !studentSearch.trim() ||
+        (st.name || "").toLowerCase().includes(studentSearch.toLowerCase()) ||
+        (st.studentId || "").toLowerCase().includes(studentSearch.toLowerCase()) ||
+        (st.email || "").toLowerCase().includes(studentSearch.toLowerCase());
+
+      const matchStudyType = studyTypeFilter === "ALL" || st.studyType === studyTypeFilter;
+
+      const matchStatus =
+        statusFilter === "ALL"
+          ? true
+          : st.warningLevel === "WARNING" || st.warningLevel === "DEPRIVED" || st.warningLevel === "ALERT";
+
+      return matchQuery && matchStudyType && matchStatus;
+    });
+  }, [students, studentSearch, studyTypeFilter, statusFilter]);
+
+  const atRiskCount = useMemo(() => {
+    return students.filter(
+      (s) => s.warningLevel === "WARNING" || s.warningLevel === "DEPRIVED" || s.warningLevel === "ALERT"
+    ).length;
+  }, [students]);
 
   if (loading) {
     return (
@@ -316,759 +288,580 @@ function DoctorCoursesContent() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col" dir="rtl">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans" dir="rtl">
+      {/* Universal Island Capsule Navbar */}
       <Navbar user={user} />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-16 space-y-6">
         {/* Navigation Breadcrumb & Header */}
-        <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 border-t-2 border-t-[#14352c] shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-1.5">
+        <div className="bg-white p-6 sm:p-7 rounded-2xl border border-slate-200 border-t-2 border-t-[#14352c] shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-1">
             <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
               <Link href="/dashboard/doctor" className="hover:text-[#14352c] transition">
                 لوحة التدريسي
               </Link>
               <span>/</span>
-              <span className="text-[#14352c] font-semibold">المقررات والجداول والطلبة</span>
+              <span className="text-[#14352c] font-semibold">المقررات والشُعب الدراسية</span>
             </div>
             <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2.5">
-              <BookOpen className="w-7 h-7 text-[#14352c]" />
-              المقررات والمراحل الأكاديمية المسندة
+              <BookOpen className="w-6 h-6 text-[#14352c]" />
+              المقررات والشُعب الدراسية
             </h1>
-            <p className="text-sm text-slate-600">
-              استعراض المناهج المكلفة من عمادة الكلية، الجداول الأسبوعية، وقوائم الطلبة وتفاصيلهم
+            <p className="text-xs sm:text-sm text-slate-600">
+              إدارة المواد المكلفة، قوائم الطلبة، وتسجيل الحضور والسعي اليومي بسهولة ووضوح
             </p>
           </div>
 
-          {/* Quick Stats Header Cards */}
+          {/* Quick Header Actions & Stats */}
           <div className="flex items-center gap-3">
-            <div className="px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-center">
-              <span className="text-[11px] text-slate-500 block font-medium">المقررات المكلفة</span>
-              <span className={`text-base font-bold text-slate-900 ${mono.className}`}>
-                {sections.length} شُعب
+            <div className="px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-center">
+              <span className="text-[10px] text-slate-500 block font-medium">الشُعب المكلفة</span>
+              <span className={`text-sm font-bold text-slate-900 ${mono.className}`}>
+                {sectionsList.length} شُعب
               </span>
             </div>
-            <div className="px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
-              <span className="text-[11px] text-emerald-700 block font-medium">إجمالي الطلبة</span>
-              <span className={`text-base font-bold text-emerald-900 ${mono.className}`}>
+
+            <div className="px-3.5 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
+              <span className="text-[10px] text-emerald-700 block font-medium">إجمالي الطلبة</span>
+              <span className={`text-sm font-bold text-emerald-900 ${mono.className}`}>
                 {totalStudentsCount} طالب
               </span>
             </div>
-            <button
-              onClick={() => window.print()}
-              className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition"
-              title="طباعة السجل الأكاديمي"
+
+            {/* Direct Link to the Official Timetable */}
+            <Link
+              href="/dashboard/doctor/schedule"
+              className="px-3.5 py-2.5 rounded-xl bg-[#14352c] hover:bg-[#1b4a3d] text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+              title="عرض الجدول الدراسي الأسبوعي المعتمد"
             >
-              <Printer className="w-4 h-4" />
-            </button>
+              <CalendarDays className="w-4 h-4 text-emerald-300" />
+              <span>الجدول الأسبوعي</span>
+            </Link>
           </div>
         </div>
 
-        {/* Tab Navigation Buttons */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-1.5 shadow-sm flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-          <button
-            onClick={() => setActiveTab("courses")}
-            className={`flex-1 min-w-[170px] py-2.5 px-4 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 ${
-              activeTab === "courses"
-                ? "bg-[#14352c] text-white shadow-xs"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-            }`}
-          >
-            <Layers className="w-4 h-4" />
-            المقررات والمراحل ({sections.length})
-          </button>
-
-          <button
-            onClick={() => setActiveTab("schedule")}
-            className={`flex-1 min-w-[170px] py-2.5 px-4 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 ${
-              activeTab === "schedule"
-                ? "bg-[#14352c] text-white shadow-xs"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-            }`}
-          >
-            <Calendar className="w-4 h-4" />
-            الجدول الأسبوعي للمحاضرات ({scheduleSlots.length})
-          </button>
-
-          <button
-            onClick={() => setActiveTab("students")}
-            className={`flex-1 min-w-[170px] py-2.5 px-4 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 ${
-              activeTab === "students"
-                ? "bg-[#14352c] text-white shadow-xs"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            قوائم الطلبة وتفاصيلهم
-          </button>
-        </div>
-
-        {/* TAB 1: Assigned Courses & Stages */}
-        {activeTab === "courses" && (
-          <div className="space-y-6">
-            {/* Stage Filter Badges */}
-            <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 ml-2">
-                  <Filter className="w-3.5 h-3.5 text-[#14352c]" />
-                  تصفية حسب المرحلة:
-                </span>
-                <button
-                  onClick={() => setSelectedStage("ALL")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                    selectedStage === "ALL"
-                      ? "bg-[#14352c] text-white"
-                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                  }`}
-                >
-                  جميع المراحل ({sections.length})
-                </button>
-                {stagesList.map((st) => (
-                  <button
-                    key={st}
-                    onClick={() => setSelectedStage(String(st))}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                      selectedStage === String(st)
-                        ? "bg-[#14352c] text-white"
-                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                    }`}
-                  >
-                    {STAGE_LABELS[st] || `المرحلة ${st}`}
-                  </button>
-                ))}
+        {/* ═══════════════════════════════════════════════════════════ */}
+        {/* TODAY'S LECTURE HIGHLIGHT CAPSULE (شريط محاضرات اليوم الحية) */}
+        {/* ═══════════════════════════════════════════════════════════ */}
+        {todaySlots.length > 0 ? (
+          <div className="bg-gradient-to-l from-emerald-50/90 to-white p-4 sm:p-5 rounded-2xl border border-emerald-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="size-10 rounded-xl bg-[#14352c] text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Clock className="w-5 h-5 text-emerald-300" />
               </div>
-
-              <div className="text-xs text-slate-500 font-medium">
-                عرض {filteredSections.length} من أصل {sections.length} شعبة
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-900">
+                    محاضراتك المجدولة اليوم ({DAY_LABELS[todayKey] || todayKey}):
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                    {todaySlots.length} محاضرة
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-slate-700">
+                  {todaySlots.map((slot, idx) => (
+                    <span key={slot._id || idx} className="inline-flex items-center gap-1 bg-white px-2.5 py-1 rounded-lg border border-slate-200 font-medium">
+                      <span className="font-bold text-[#14352c]">{slot.section?.course?.name}</span>
+                      <span className="text-slate-400">•</span>
+                      <span className="font-mono text-slate-600">{slot.startTime} - {slot.endTime}</span>
+                      <span className="text-slate-400">•</span>
+                      <span className="text-slate-500 font-mono text-[11px]">{slot.room || "قاعة المحاضرات"}</span>
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
 
-            {/* Courses Grid */}
-            {filteredSections.length === 0 ? (
-              <div className="bg-white p-12 rounded-2xl border border-dashed border-slate-300 text-center space-y-2">
-                <BookOpen className="w-10 h-10 text-slate-400 mx-auto" />
-                <h3 className="text-base font-bold text-slate-800">لا توجد مواد مسندة في هذه المرحلة</h3>
-                <p className="text-xs text-slate-500">اختر مرحلة أخرى أو راجع عمادة الكلية.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredSections.map((sec) => {
-                  const enrolled = sec.enrolledCount || 0;
-                  const capacity = sec.capacity || 60;
-                  const pct = Math.min(Math.round((enrolled / capacity) * 100), 100);
-                  const stageNum = sec.course?.stage || 1;
-
-                  return (
-                    <div
-                      key={sec._id}
-                      className="bg-white rounded-2xl border border-slate-200 hover:border-slate-300 p-6 flex flex-col justify-between space-y-5 shadow-sm transition"
-                    >
-                      <div className="space-y-4">
-                        {/* Badges Header */}
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-[#14352c] font-bold text-xs">
-                            {STAGE_LABELS[stageNum] || `المرحلة ${stageNum}`}
-                          </span>
-                          <span className="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs font-mono">
-                            شعبة {sec.sectionNumber || "1"}
-                          </span>
-                        </div>
-
-                        {/* Course Name & Details */}
-                        <div>
-                          <h3 className="text-lg font-bold text-slate-900 leading-snug">
-                            {sec.course?.name || "المقرر الدراسي"}
-                          </h3>
-                          <p className="text-xs text-slate-500 mt-1 flex items-center gap-2">
-                            <span>كود المادة:</span>
-                            <span className="font-mono font-bold text-slate-700">
-                              {sec.course?.code || "CPE"}
-                            </span>
-                            <span>•</span>
-                            <span>{sec.course?.credits || 3} وحدات</span>
-                          </p>
-                        </div>
-
-                        {/* Section Metadata Grid */}
-                        <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
-                          <div>
-                            <span className="text-[11px] text-slate-500 block">الفصل الدراسي:</span>
-                            <span className="font-semibold text-slate-800">
-                              {sec.semester === "FIRST" ? "الفصل الأول" : "الفصل الثاني"}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-[11px] text-slate-500 block">السنة الأكاديمية:</span>
-                            <span className="font-semibold text-slate-800 font-mono">
-                              {sec.academicYear || "2025-2026"}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-[11px] text-slate-500 block">حد الغياب المسموح:</span>
-                            <span className="font-semibold text-rose-700 font-mono">
-                              {sec.maxAbsenceHours || 6} ساعات
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-[11px] text-slate-500 block">المقاعد الشاغرة:</span>
-                            <span className="font-semibold text-emerald-700 font-mono">
-                              {sec.availableSeats ?? Math.max(0, capacity - enrolled)} مقعد
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Capacity Progress */}
-                        <div className="space-y-1.5">
-                          <div className="flex justify-between text-xs text-slate-600">
-                            <span>الطلبة المقبولين بالشعبة</span>
-                            <span className={`font-bold ${mono.className}`}>
-                              {enrolled} / {capacity}
-                            </span>
-                          </div>
-                          <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-                            <div
-                              className="h-full bg-[#14352c] rounded-full transition-all"
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Schedule Timing Slot Preview */}
-                        {sec.schedule && sec.schedule.length > 0 && (
-                          <div className="space-y-1 pt-1">
-                            <span className="text-[11px] font-bold text-slate-500 block">
-                              مواعيد المحاضرات والقاعة:
-                            </span>
-                            {sec.schedule.map((sch: any, idx: number) => (
-                              <div
-                                key={idx}
-                                className="text-xs bg-emerald-50/50 border border-emerald-100 px-2.5 py-1.5 rounded-lg text-slate-700 flex items-center justify-between"
-                              >
-                                <span className="font-semibold text-[#14352c]">
-                                  {DAY_LABELS[sch.dayOfWeek] || sch.dayOfWeek}
-                                </span>
-                                <span className="font-mono text-[11px] text-slate-600">
-                                  {sch.startTime} - {sch.endTime}
-                                </span>
-                                <span className="text-[11px] text-slate-500 truncate max-w-[120px]">
-                                  {sch.room || "قاعة المحاضرات"}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Card Action Buttons */}
-                      <div className="pt-4 border-t border-slate-100 space-y-2">
-                        <button
-                          onClick={() => {
-                            setSelectedSectionId(sec._id);
-                            setActiveTab("students");
-                          }}
-                          className="w-full py-2.5 rounded-xl bg-[#14352c] hover:bg-[#1b4a3d] text-white font-bold text-xs transition flex items-center justify-center gap-2 shadow-xs"
-                        >
-                          <Users className="w-3.5 h-3.5" />
-                          عرض قائمة وتفاصيل الطلبة ({enrolled})
-                        </button>
-
-                        <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                          <Link
-                            href="/dashboard/doctor/attendance"
-                            className="py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold transition flex items-center justify-center gap-1"
-                          >
-                            <QrCode className="w-3 h-3 text-slate-500" />
-                            الحضور
-                          </Link>
-                          <Link
-                            href="/dashboard/doctor/grades"
-                            className="py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold transition flex items-center justify-center gap-1"
-                          >
-                            <Award className="w-3 h-3 text-slate-500" />
-                            السعي
-                          </Link>
-                          <Link
-                            href="/dashboard/doctor/materials"
-                            className="py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold transition flex items-center justify-center gap-1"
-                          >
-                            <UploadCloud className="w-3 h-3 text-slate-500" />
-                            الملازم
-                          </Link>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            <Link
+              href="/dashboard/doctor/attendance"
+              className="px-4 py-2.5 rounded-xl bg-[#14352c] hover:bg-[#1b4a3d] text-white text-xs font-bold transition flex items-center justify-center gap-2 shrink-0 shadow-sm"
+            >
+              <QrCode className="w-4 h-4 text-emerald-300" />
+              <span>بدء جلسة الحضور الحي (QR)</span>
+            </Link>
+          </div>
+        ) : (
+          <div className="bg-white p-3.5 px-5 rounded-xl border border-slate-200 flex items-center justify-between gap-3 text-xs text-slate-500">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-slate-400" />
+              <span>لا توجد محاضرات مجدولة لليوم ({DAY_LABELS[todayKey] || "اليوم"}). يمكنك استثمار الوقت في رصد السعي أو تجهيز الملازم.</span>
+            </div>
+            <Link
+              href="/dashboard/doctor/schedule"
+              className="text-[#14352c] font-bold hover:underline flex items-center gap-0.5 text-xs"
+            >
+              <span>معاينة باقي أيام الأسبوع</span>
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </Link>
           </div>
         )}
 
-        {/* TAB 2: Weekly Schedule Timetable */}
-        {activeTab === "schedule" && (
-          <div className="space-y-6">
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-[#14352c]" />
-                  الجدول التدريسي الأسبوعي المعتمد
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  توزيع أوقات المحاضرات الأسبوعية والقاعات والمباني المخصصة من عمادة الكلية
-                </p>
-              </div>
+        {/* ═══════════════════════════════════════════════════════════ */}
+        {/* FILTER & SEARCH BAR                                         */}
+        {/* ═══════════════════════════════════════════════════════════ */}
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
+          {/* Quick Stage Filter Badges */}
+          <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto">
+            <button
+              type="button"
+              onClick={() => setSelectedStage("ALL")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                selectedStage === "ALL"
+                  ? "bg-[#14352c] text-white shadow-xs"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              الكل ({sectionsList.length})
+            </button>
+            {stagesList.map((st) => (
+              <button
+                key={st}
+                type="button"
+                onClick={() => setSelectedStage(String(st))}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                  selectedStage === String(st)
+                    ? "bg-[#14352c] text-white shadow-xs"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                }`}
+              >
+                {STAGE_LABELS[st] || `المرحلة ${st}`}
+              </button>
+            ))}
+          </div>
 
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 font-mono">
-                  إجمالي المحاضرات: {scheduleSlots.length} أسبوعيًا
-                </span>
-              </div>
-            </div>
+          {/* Quick Course Search */}
+          <div className="relative w-full md:w-72">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="ابحث عن مقرر أو كود المادة..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-9 pl-3.5 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#14352c] focus:ring-1 focus:ring-[#14352c] transition"
+            />
+          </div>
+        </div>
 
-            {/* Days Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {activeDays.map(
-                (dayKey) => {
-                  const daySlots = slotsByDay[dayKey] || [];
-                  const isToday =
-                    new Date().toLocaleDateString("en-US", { weekday: "long" }).toUpperCase() ===
-                    dayKey;
+        {/* ═══════════════════════════════════════════════════════════ */}
+        {/* STREAMLINED COURSE CARDS GRID                               */}
+        {/* ═══════════════════════════════════════════════════════════ */}
+        {filteredSections.length === 0 ? (
+          <div className="bg-white p-12 rounded-2xl border border-dashed border-slate-300 text-center space-y-2">
+            <BookOpen className="w-10 h-10 text-slate-400 mx-auto" />
+            <h3 className="text-base font-bold text-slate-800">لا توجد مقررات دراسية مطابقة</h3>
+            <p className="text-xs text-slate-500">جرب تغيير شروط التصفية أو البحث أعلاه.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredSections.map((sec) => {
+              const enrolled = sec.enrolledCount || 0;
+              const stageNum = sec.course?.stage || 1;
+              const schedules = sec.schedule || [];
 
-                  return (
-                    <div
-                      key={dayKey}
-                      className={`bg-white rounded-2xl border p-5 shadow-xs flex flex-col justify-between space-y-4 ${
-                        isToday ? "border-[#14352c] ring-1 ring-[#14352c]/20" : "border-slate-200"
-                      }`}
-                    >
-                      {/* Day Header */}
-                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-base font-bold text-slate-900">
-                            {DAY_LABELS[dayKey]}
-                          </h4>
-                          {isToday && (
-                            <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold">
-                              اليوم
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-xs text-slate-500 font-mono font-medium">
-                          {daySlots.length} محاضرات
+              return (
+                <div
+                  key={sec._id}
+                  className="bg-white rounded-2xl border border-slate-200 hover:border-slate-300 hover:shadow-md p-5 flex flex-col justify-between space-y-4 transition group"
+                >
+                  <div className="space-y-3.5">
+                    {/* Header Badges */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-[#14352c] font-bold text-[11px]">
+                          {STAGE_LABELS[stageNum] || `المرحلة ${stageNum}`}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[11px] font-mono">
+                          شعبة {sec.sectionNumber || "1"}
                         </span>
                       </div>
-
-                      {/* Day Slots List */}
-                      <div className="space-y-3 flex-1">
-                        {daySlots.length === 0 ? (
-                          <div className="py-8 text-center text-xs text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                            لا توجد محاضرات مجدولة لهذا اليوم
-                          </div>
-                        ) : (
-                          daySlots.map((slot: any) => (
-                            <div
-                              key={slot._id}
-                              className="bg-slate-50 hover:bg-slate-100/80 transition p-3.5 rounded-xl border border-slate-200 space-y-2"
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <h5 className="text-xs font-bold text-slate-900 leading-snug">
-                                  {slot.section?.course?.name || "المقرر"}
-                                </h5>
-                                <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold shrink-0">
-                                  شعبة {slot.section?.sectionNumber || "1"}
-                                </span>
-                              </div>
-
-                              <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-600">
-                                <div className="flex items-center gap-1 font-mono text-[#14352c] font-semibold">
-                                  <Clock className="w-3.5 h-3.5 text-[#14352c]" />
-                                  <span>
-                                    {slot.startTime} - {slot.endTime}
-                                  </span>
-                                </div>
-
-                                <div className="flex items-center gap-1">
-                                  <MapPin className="w-3.5 h-3.5 text-slate-500" />
-                                  <span>{slot.room || "قاعة دراسية"}</span>
-                                </div>
-                              </div>
-
-                              {slot.building && (
-                                <p className="text-[10px] text-slate-500 flex items-center gap-1">
-                                  <Building className="w-3 h-3" />
-                                  <span>{slot.building}</span>
-                                </p>
-                              )}
-                            </div>
-                          ))
-                        )}
-                      </div>
+                      <span className="text-[11px] font-mono text-slate-500 font-medium">
+                        {sec.course?.code || "CPE"} • {sec.course?.credits || 3} وحدات
+                      </span>
                     </div>
-                  );
-                }
-              )}
-            </div>
-          </div>
-        )}
 
-        {/* TAB 3: Student Rosters & Details */}
-        {activeTab === "students" && (
-          <div className="space-y-6">
-            {/* Filter & Controls Bar */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                <div className="w-full lg:w-80">
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    اختر الشعبة الدراسية:
-                  </label>
-                  <CustomSelect
-                    options={sectionOptions}
-                    value={selectedSectionId}
-                    onChange={(val) => {
-                      setSelectedSectionId(val);
-                      smartCache.setWorkspace("doctor_selected_section", val);
-                    }}
-                    className="w-full"
-                    theme="light"
-                  />
-                </div>
+                    {/* Course Title & Department */}
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900 group-hover:text-[#14352c] transition leading-snug">
+                        {sec.course?.name || "المقرر الدراسي"}
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-1 flex items-center gap-2">
+                        <span>{sec.semester === "FIRST" ? "الكورس الأول" : "الكورس الثاني"}</span>
+                        <span>•</span>
+                        <span className="font-mono text-slate-600">{sec.academicYear || "2025-2026"}</span>
+                      </p>
+                    </div>
 
-                {/* Quick Actions Hub for Current Section */}
-                <div className="flex flex-wrap items-center gap-2 pt-1 lg:pt-0">
-                  {/* Export Excel Button */}
-                  <button
-                    type="button"
-                    onClick={handleExportExcel}
-                    disabled={exportingExcel || studentsList.length === 0}
-                    className="px-3.5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-xs disabled:opacity-50 cursor-pointer"
-                    title="تصدير كشف حضور وغياب الشعبة بملف إكسل رسمي"
-                  >
-                    {exportingExcel ? (
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <FileSpreadsheet className="w-3.5 h-3.5" />
-                    )}
-                    <span>تصدير كشف Excel</span>
-                  </button>
+                    {/* Schedule & Timing Box */}
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1.5 text-xs">
+                      {schedules.length > 0 ? (
+                        schedules.map((sch: any, idx: number) => (
+                          <div key={idx} className="flex items-center justify-between text-slate-700">
+                            <span className="font-bold text-[#14352c]">
+                              {DAY_LABELS[sch.dayOfWeek] || sch.dayOfWeek}
+                            </span>
+                            <span className="font-mono text-slate-600 text-[11px]">
+                              {sch.startTime} - {sch.endTime}
+                            </span>
+                            <span className="text-[11px] text-slate-500 truncate max-w-[110px]">
+                              {sch.room || "قاعة المحاضرات"}
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-slate-400 text-center py-1">
+                          لم يتم تحديد قاعة أو وقت بعد
+                        </div>
+                      )}
+                    </div>
 
-                  {/* Direct Link to Grades & Coursework */}
-                  <Link
-                    href={`/dashboard/doctor/grades?sectionId=${selectedSectionId}`}
-                    className="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition flex items-center gap-1.5 border border-slate-200"
-                    title="رصد درجات السعي والامتحانات لهذه الشعبة"
-                  >
-                    <Award className="w-3.5 h-3.5 text-[#14352c]" />
-                    <span>رصد السعي</span>
-                  </Link>
-
-                  {/* Direct Link to Attendance Sessions */}
-                  <Link
-                    href="/dashboard/doctor/attendance"
-                    className="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition flex items-center gap-1.5 border border-slate-200"
-                    title="فتح جلسة حضور ذكية بـ QR"
-                  >
-                    <QrCode className="w-3.5 h-3.5 text-[#14352c]" />
-                    <span>جلسة حضور QR</span>
-                  </Link>
-                </div>
-
-                {/* Quick Roster Stats */}
-                <div className="flex flex-wrap items-center gap-2 pt-2 lg:pt-0">
-                  <div className="px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-center">
-                    <span className="text-[10px] text-slate-500 block">المسجلين</span>
-                    <span className={`text-xs font-bold text-slate-900 ${mono.className}`}>
-                      {studentsList.length} طالب
-                    </span>
+                    {/* Quick Student Count Bar */}
+                    <div className="flex items-center justify-between text-xs text-slate-600 bg-slate-50/60 px-3 py-2 rounded-xl">
+                      <span className="flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5 text-slate-500" />
+                        الطلبة المقبولين بالشعبة:
+                      </span>
+                      <span className={`font-bold text-slate-900 ${mono.className}`}>
+                        {enrolled} طالب
+                      </span>
+                    </div>
                   </div>
-                  <div className="px-3.5 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
-                    <span className="text-[10px] text-emerald-700 block">صباحي</span>
-                    <span className={`text-xs font-bold text-emerald-900 ${mono.className}`}>
-                      {studentsList.filter((s) => s.studyType === "MORNING").length}
-                    </span>
+
+                  {/* Actions Hub */}
+                  <div className="pt-3 border-t border-slate-100 space-y-2">
+                    {/* Primary Green CTA: Instant Attendance */}
+                    <Link
+                      href="/dashboard/doctor/attendance"
+                      className="w-full py-2.5 rounded-xl bg-[#14352c] hover:bg-[#1b4a3d] text-white font-bold text-xs transition flex items-center justify-center gap-2 shadow-xs"
+                    >
+                      <QrCode className="w-3.5 h-3.5 text-emerald-300" />
+                      <span>تسجيل الحضور الذكي (QR)</span>
+                    </Link>
+
+                    {/* Secondary Clean Action Buttons */}
+                    <div className="grid grid-cols-4 gap-1.5 text-center text-xs">
+                      {/* View Student Roster */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveSectionId(sec._id);
+                          setRosterModalOpen(true);
+                        }}
+                        className="py-1.5 px-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold transition flex items-center justify-center gap-1 border border-slate-200"
+                        title="كشف طلبة هذه الشعبة"
+                      >
+                        <Users className="w-3.5 h-3.5 text-slate-600" />
+                        <span>الطلبة</span>
+                      </button>
+
+                      {/* Grades & Coursework */}
+                      <Link
+                        href={`/dashboard/doctor/grades?sectionId=${sec._id}`}
+                        className="py-1.5 px-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold transition flex items-center justify-center gap-1 border border-slate-200"
+                        title="رصد السعي والامتحانات"
+                      >
+                        <Award className="w-3.5 h-3.5 text-slate-600" />
+                        <span>السعي</span>
+                      </Link>
+
+                      {/* Course Materials */}
+                      <Link
+                        href="/dashboard/doctor/materials"
+                        className="py-1.5 px-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold transition flex items-center justify-center gap-1 border border-slate-200"
+                        title="المحاضرات والملازم"
+                      >
+                        <UploadCloud className="w-3.5 h-3.5 text-slate-600" />
+                        <span>الملازم</span>
+                      </Link>
+
+                      {/* Direct Excel Export */}
+                      <button
+                        type="button"
+                        onClick={() => handleExportExcel(sec._id, sec.sectionNumber)}
+                        disabled={exportingExcel}
+                        className="py-1.5 px-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold transition flex items-center justify-center gap-1 border border-emerald-200 disabled:opacity-50"
+                        title="تنزيل كشف الحضور Excel"
+                      >
+                        <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700" />
+                        <span>إكسل</span>
+                      </button>
+                    </div>
                   </div>
-                  <div className="px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-200 text-center">
-                    <span className="text-[10px] text-amber-700 block">مسائي</span>
-                    <span className={`text-xs font-bold text-amber-900 ${mono.className}`}>
-                      {studentsList.filter((s) => s.studyType === "EVENING").length}
-                    </span>
-                  </div>
-                  <div className={`px-3.5 py-2 rounded-xl border text-center ${
-                    atRiskCount > 0 ? "bg-rose-50 border-rose-200" : "bg-slate-50 border-slate-200"
-                  }`}>
-                    <span className={`text-[10px] block font-bold ${atRiskCount > 0 ? "text-rose-700" : "text-slate-500"}`}>
-                      إنذارات غياب
-                    </span>
-                    <span className={`text-xs font-bold ${mono.className} ${atRiskCount > 0 ? "text-rose-800" : "text-slate-900"}`}>
-                      {atRiskCount} طلاب
-                    </span>
-                  </div>
                 </div>
-              </div>
-
-              {/* Search & Study Type Filters */}
-              <div className="flex flex-col sm:flex-row items-center gap-3 pt-2 border-t border-slate-100">
-                <div className="relative flex-1 w-full">
-                  <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="ابحث عن اسم الطالب، الرقم الجامعي، أو البريد الإلكتروني..."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-10 pl-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#14352c] focus:ring-1 focus:ring-[#14352c] transition"
-                  />
-                </div>
-
-                <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
-                  <button
-                    onClick={() => setStudyTypeFilter("ALL")}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-                      studyTypeFilter === "ALL"
-                        ? "bg-[#14352c] text-white"
-                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                    }`}
-                  >
-                    الكل ({studentsList.length})
-                  </button>
-                  <button
-                    onClick={() => setStudyTypeFilter("MORNING")}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-                      studyTypeFilter === "MORNING"
-                        ? "bg-[#14352c] text-white"
-                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                    }`}
-                  >
-                    صباحي
-                  </button>
-                  <button
-                    onClick={() => setStudyTypeFilter("EVENING")}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-                      studyTypeFilter === "EVENING"
-                        ? "bg-[#14352c] text-white"
-                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                    }`}
-                  >
-                    مسائي
-                  </button>
-
-                  {/* Filter by Warning / At-Risk */}
-                  <button
-                    onClick={() => setStatusFilter((prev) => (prev === "WARNING" ? "ALL" : "WARNING"))}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap ${
-                      statusFilter === "WARNING"
-                        ? "bg-rose-700 text-white shadow-xs"
-                        : atRiskCount > 0
-                        ? "bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100"
-                        : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                    }`}
-                    title="تصفية الطلاب الذين وصلوا إلى مرحلة الإنذار أو تجاوزوا حد الحرمان"
-                  >
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                    <span>المعرضين للحرمان ({atRiskCount})</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Students Table */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              {studentsLoading ? (
-                <div className="py-20 text-center space-y-2">
-                  <RefreshCw className="w-8 h-8 animate-spin mx-auto text-[#14352c]" />
-                  <p className="text-xs text-slate-500 font-medium">جارٍ جلب قائمة وتفاصيل الطلبة...</p>
-                </div>
-              ) : filteredStudents.length === 0 ? (
-                <div className="py-16 text-center space-y-3">
-                  <Users className="w-10 h-10 text-slate-300 mx-auto" />
-                  <h4 className="text-sm font-bold text-slate-700">لا يوجد طلاب مطابقين للبحث</h4>
-                  <p className="text-xs text-slate-500">تأكد من نص البحث أو خيارات التصفية المحددة.</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-right text-xs">
-                    <thead>
-                      <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-bold">
-                        <th className="py-3.5 px-4">#</th>
-                        <th className="py-3.5 px-4">الطالب والبريد الرسمي</th>
-                        <th className="py-3.5 px-4">الرقم الجامعي (ID)</th>
-                        <th className="py-3.5 px-4">المرحلة والدراسة</th>
-                        <th className="py-3.5 px-4">سجل الحضور والغياب</th>
-                        <th className="py-3.5 px-4">سنة القبول</th>
-                        <th className="py-3.5 px-4 text-center">إجراءات سريعة</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredStudents.map((st, idx) => (
-                        <tr
-                          key={st._id}
-                          className="hover:bg-slate-50/80 transition cursor-pointer"
-                          onClick={() => setSelectedStudent(st)}
-                        >
-                          <td className="py-3 px-4 font-mono text-slate-400 font-medium">
-                            {idx + 1}
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-3">
-                              <div className="size-8 rounded-full bg-[#14352c]/10 text-[#14352c] font-bold flex items-center justify-center shrink-0">
-                                {st.name ? st.name[0] : "ط"}
-                              </div>
-                              <div>
-                                <h5 className="font-bold text-slate-900">{st.name || "طالب"}</h5>
-                                <span className="text-[11px] text-slate-500 font-mono block">
-                                  {st.email || "student@uomustansiriyah.edu.iq"}
-                                </span>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 font-mono font-bold text-slate-800">
-                            {st.studentId || "N/A"}
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="space-y-0.5">
-                              <span className="text-slate-800 font-medium block">
-                                {STAGE_LABELS[st.stage] || `المرحلة ${st.stage || 1}`}
-                              </span>
-                              <span
-                                className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-bold ${
-                                  st.studyType === "MORNING"
-                                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                                    : "bg-amber-50 text-amber-800 border border-amber-200"
-                                }`}
-                              >
-                                {st.studyType === "MORNING" ? "صباحي" : "مسائي"}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            {st.warningLevel === "DEPRIVED" ? (
-                              <span className="inline-flex items-center gap-1 text-rose-700 font-bold text-[11px] bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md">
-                                <AlertCircle className="w-3 h-3" />
-                                تجاوز الحرمان ({st.absentCount || 0}/{st.maxAbsences || 6})
-                              </span>
-                            ) : st.warningLevel === "WARNING" ? (
-                              <span className="inline-flex items-center gap-1 text-amber-700 font-bold text-[11px] bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
-                                <AlertTriangle className="w-3 h-3" />
-                                إنذار نهائي ({st.absentCount || 0}/{st.maxAbsences || 6})
-                              </span>
-                            ) : st.warningLevel === "ALERT" ? (
-                              <span className="inline-flex items-center gap-1 text-amber-700 font-semibold text-[11px] bg-amber-50/60 border border-amber-200 px-2 py-0.5 rounded-md">
-                                <AlertTriangle className="w-3 h-3" />
-                                إنذار أول ({st.absentCount || 0}/{st.maxAbsences || 6})
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-emerald-700 font-medium text-[11px]">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>منتظم ({st.absentCount || 0} غياب)</span>
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 font-mono text-slate-600">
-                            {st.admissionYear || "2023"}
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            <div className="flex items-center justify-center gap-1.5">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedStudent(st);
-                                }}
-                                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-[#14352c] hover:text-white text-slate-700 font-bold transition flex items-center gap-1 text-xs cursor-pointer"
-                                title="عرض ملف الطالب"
-                              >
-                                <Eye className="w-3 h-3" />
-                                <span>تفاصيل</span>
-                              </button>
-                              <Link
-                                href={`/dashboard/doctor/grades?sectionId=${selectedSectionId}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-[#14352c] font-bold transition flex items-center gap-1 text-xs border border-emerald-200"
-                                title="رصد الدرجات والسعي للطالب"
-                              >
-                                <Award className="w-3 h-3" />
-                                <span>السعي</span>
-                              </Link>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+              );
+            })}
           </div>
         )}
       </main>
 
-      {/* Student Details Dialog */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* INTEGRATED STUDENT ROSTER MODAL                             */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      <Dialog
+        isOpen={rosterModalOpen}
+        onClose={() => setRosterModalOpen(false)}
+        title={`كشف طلبة: ${currentActiveSection?.course?.name || "المقرر"} (شعبة ${currentActiveSection?.sectionNumber || "1"})`}
+        maxWidth="max-w-4xl"
+      >
+        <div className="space-y-4">
+          {/* Quick Roster Header Summary */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="text-center px-3 py-1.5 bg-white rounded-lg border border-slate-200">
+                <span className="text-[10px] text-slate-500 block">المسجلين</span>
+                <span className={`text-xs font-bold text-slate-900 ${mono.className}`}>
+                  {students.length} طالب
+                </span>
+              </div>
+              <div className="text-center px-3 py-1.5 bg-white rounded-lg border border-slate-200">
+                <span className="text-[10px] text-emerald-700 block">صباحي</span>
+                <span className={`text-xs font-bold text-emerald-900 ${mono.className}`}>
+                  {students.filter((s) => s.studyType === "MORNING").length}
+                </span>
+              </div>
+              <div className="text-center px-3 py-1.5 bg-white rounded-lg border border-slate-200">
+                <span className="text-[10px] text-amber-700 block">مسائي</span>
+                <span className={`text-xs font-bold text-amber-900 ${mono.className}`}>
+                  {students.filter((s) => s.studyType === "EVENING").length}
+                </span>
+              </div>
+              {atRiskCount > 0 && (
+                <div className="text-center px-3 py-1.5 bg-rose-50 border border-rose-200 rounded-lg">
+                  <span className="text-[10px] text-rose-700 font-bold block">إنذارات غياب</span>
+                  <span className={`text-xs font-bold text-rose-900 ${mono.className}`}>
+                    {atRiskCount} طالب
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Direct Excel Download in Modal */}
+            <button
+              type="button"
+              onClick={() => handleExportExcel(activeSectionId, currentActiveSection?.sectionNumber)}
+              disabled={exportingExcel || students.length === 0}
+              className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>تصدير كشف Excel</span>
+            </button>
+          </div>
+
+          {/* Search & Filter Bar inside Modal */}
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <div className="relative flex-1 w-full">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={studentSearch}
+                onChange={(e) => setStudentSearch(e.target.value)}
+                placeholder="ابحث عن اسم الطالب، الرقم الجامعي..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-9 pl-3.5 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#14352c] transition"
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => setStudyTypeFilter("ALL")}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                  studyTypeFilter === "ALL" ? "bg-[#14352c] text-white" : "bg-slate-100 text-slate-700"
+                }`}
+              >
+                الكل
+              </button>
+              <button
+                type="button"
+                onClick={() => setStudyTypeFilter("MORNING")}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                  studyTypeFilter === "MORNING" ? "bg-[#14352c] text-white" : "bg-slate-100 text-slate-700"
+                }`}
+              >
+                صباحي
+              </button>
+              <button
+                type="button"
+                onClick={() => setStudyTypeFilter("EVENING")}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                  studyTypeFilter === "EVENING" ? "bg-[#14352c] text-white" : "bg-slate-100 text-slate-700"
+                }`}
+              >
+                مسائي
+              </button>
+              {atRiskCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter((p) => (p === "WARNING" ? "ALL" : "WARNING"))}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                    statusFilter === "WARNING"
+                      ? "bg-rose-700 text-white"
+                      : "bg-rose-50 text-rose-700 border border-rose-200"
+                  }`}
+                >
+                  <AlertTriangle className="w-3 h-3" />
+                  إنذارات ({atRiskCount})
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Students Table */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden max-h-[420px] overflow-y-auto">
+            {studentsLoading ? (
+              <div className="py-16 text-center space-y-2">
+                <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#14352c]" />
+                <p className="text-xs text-slate-500 font-medium">جارٍ تحميل قائمة الطلبة...</p>
+              </div>
+            ) : filteredStudents.length === 0 ? (
+              <div className="py-12 text-center text-xs text-slate-500">
+                لا يوجد طلاب مطابقين للبحث
+              </div>
+            ) : (
+              <table className="w-full text-right text-xs">
+                <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 text-slate-600 font-bold z-10">
+                  <tr>
+                    <th className="py-2.5 px-3">#</th>
+                    <th className="py-2.5 px-3">الطالب والبريد الجامعي</th>
+                    <th className="py-2.5 px-3">الرقم الجامعي</th>
+                    <th className="py-2.5 px-3">الدراسة</th>
+                    <th className="py-2.5 px-3">سجل الغيابات</th>
+                    <th className="py-2.5 px-3 text-center">إجراءات</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredStudents.map((st, idx) => (
+                    <tr
+                      key={st._id}
+                      onClick={() => setSelectedStudent(st)}
+                      className="hover:bg-slate-50 transition cursor-pointer"
+                    >
+                      <td className="py-2.5 px-3 font-mono text-slate-400">{idx + 1}</td>
+                      <td className="py-2.5 px-3">
+                        <div>
+                          <h5 className="font-bold text-slate-900">{st.name}</h5>
+                          <span className="text-[10px] text-slate-500 font-mono block">{st.email}</span>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3 font-mono font-bold text-slate-700">{st.studentId || "—"}</td>
+                      <td className="py-2.5 px-3">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            st.studyType === "MORNING"
+                              ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                              : "bg-amber-50 text-amber-800 border border-amber-200"
+                          }`}
+                        >
+                          {st.studyType === "MORNING" ? "صباحي" : "مسائي"}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        {st.warningLevel === "DEPRIVED" ? (
+                          <span className="inline-flex items-center gap-1 text-rose-700 font-bold text-[10px] bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md">
+                            <AlertCircle className="w-3 h-3" />
+                            تجاوز الحرمان ({st.absentCount || 0}/{st.maxAbsences || 6})
+                          </span>
+                        ) : st.warningLevel === "WARNING" ? (
+                          <span className="inline-flex items-center gap-1 text-amber-700 font-bold text-[10px] bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                            <AlertTriangle className="w-3 h-3" />
+                            إنذار نهائي ({st.absentCount || 0}/{st.maxAbsences || 6})
+                          </span>
+                        ) : st.warningLevel === "ALERT" ? (
+                          <span className="inline-flex items-center gap-1 text-amber-700 font-semibold text-[10px] bg-amber-50/60 border border-amber-200 px-2 py-0.5 rounded-md">
+                            <AlertTriangle className="w-3 h-3" />
+                            إنذار أول ({st.absentCount || 0}/{st.maxAbsences || 6})
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-emerald-700 font-medium text-[10px]">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            <span>منتظم ({st.absentCount || 0} غياب)</span>
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedStudent(st);
+                            }}
+                            className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold"
+                            title="معاينة تفاصيل الملف"
+                          >
+                            ملف
+                          </button>
+                          <Link
+                            href={`/dashboard/doctor/grades?sectionId=${activeSectionId}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="px-2 py-1 rounded bg-emerald-50 hover:bg-emerald-100 text-[#14352c] text-[11px] font-bold border border-emerald-200"
+                            title="رصد الدرجات والسعي"
+                          >
+                            سعي
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          <div className="flex justify-end pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setRosterModalOpen(false)}
+              className="px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition"
+            >
+              إغلاق
+            </button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* STUDENT PROFILE DETAILS MODAL                               */}
+      {/* ═══════════════════════════════════════════════════════════ */}
       <Dialog
         isOpen={!!selectedStudent}
         onClose={() => setSelectedStudent(null)}
         title={`الملف الأكاديمي: ${selectedStudent?.name || "الطالب"}`}
-        maxWidth="max-w-lg"
+        maxWidth="max-w-md"
       >
         {selectedStudent && (
-          <div className="space-y-5">
-            {/* Student Header Card */}
-            <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-              <div className="size-14 rounded-2xl bg-[#14352c] text-white flex items-center justify-center font-bold text-xl shadow-xs">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+              <div className="size-12 rounded-xl bg-[#14352c] text-white flex items-center justify-center font-bold text-lg shrink-0">
                 {selectedStudent.name ? selectedStudent.name[0] : "ط"}
               </div>
-              <div className="space-y-1">
-                <h4 className="text-base font-bold text-slate-900">{selectedStudent.name}</h4>
-                <p className="text-xs text-slate-600 flex items-center gap-1.5">
-                  <Mail className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="font-mono">{selectedStudent.email}</span>
-                </p>
-                <div className="flex items-center gap-2 pt-0.5">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                    طالب رسمي مقيد
-                  </span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-200 text-slate-800">
-                    ID: {selectedStudent.studentId}
-                  </span>
-                </div>
+              <div className="space-y-0.5">
+                <h4 className="text-sm font-bold text-slate-900">{selectedStudent.name}</h4>
+                <p className="text-[11px] text-slate-500 font-mono">{selectedStudent.email}</p>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-200 text-slate-800 inline-block mt-0.5">
+                  ID: {selectedStudent.studentId || "N/A"}
+                </span>
               </div>
             </div>
 
-            {/* Academic Properties Grid */}
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
-                <span className="text-[11px] text-slate-500 block">المرحلة الدراسية:</span>
-                <span className="font-bold text-slate-900">
-                  {STAGE_LABELS[selectedStudent.stage] || `المرحلة ${selectedStudent.stage}`}
-                </span>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                <span className="text-[10px] text-slate-500 block">المرحلة:</span>
+                <span className="font-bold text-slate-900">{STAGE_LABELS[selectedStudent.stage] || `المرحلة ${selectedStudent.stage}`}</span>
               </div>
-
-              <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
-                <span className="text-[11px] text-slate-500 block">نوع الدراسة:</span>
-                <span className="font-bold text-slate-900">
-                  {selectedStudent.studyType === "MORNING" ? "دراسة صباحية" : "دراسة مسائية"}
-                </span>
-              </div>
-
-              <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
-                <span className="text-[11px] text-slate-500 block">سنة القبول:</span>
-                <span className="font-bold text-slate-900 font-mono">
-                  {selectedStudent.admissionYear || "2023"}
-                </span>
-              </div>
-
-              <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
-                <span className="text-[11px] text-slate-500 block">الشعبة المسجلة:</span>
-                <span className="font-bold text-slate-900">
-                  {activeSectionObj ? `شعبة ${activeSectionObj.sectionNumber}` : "الشعبة 1"}
-                </span>
+              <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                <span className="text-[10px] text-slate-500 block">نوع الدراسة:</span>
+                <span className="font-bold text-slate-900">{selectedStudent.studyType === "MORNING" ? "صباحي" : "مسائي"}</span>
               </div>
             </div>
 
             {/* Attendance & Warning Summary */}
-            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
               <div className="flex items-center justify-between text-xs font-bold text-slate-900">
-                <span className="flex items-center gap-1.5">
+                <span className="flex items-center gap-1">
                   <QrCode className="w-3.5 h-3.5 text-[#14352c]" />
                   سجل الحضور والالتزام:
                 </span>
                 <span
-                  className={`text-[11px] px-2 py-0.5 rounded font-bold ${
+                  className={`text-[10px] px-2 py-0.5 rounded font-bold ${
                     selectedStudent.warningLevel === "DEPRIVED"
                       ? "bg-rose-100 text-rose-800"
                       : selectedStudent.warningLevel === "WARNING"
@@ -1079,7 +872,7 @@ function DoctorCoursesContent() {
                   }`}
                 >
                   {selectedStudent.warningLevel === "DEPRIVED"
-                    ? "تجاوز حد الحرمان الأكاديمي"
+                    ? "تجاوز حد الحرمان"
                     : selectedStudent.warningLevel === "WARNING"
                     ? "إنذار غياب نهائي"
                     : selectedStudent.warningLevel === "ALERT"
@@ -1090,15 +883,15 @@ function DoctorCoursesContent() {
 
               <div className="grid grid-cols-3 gap-2 text-center text-xs">
                 <div className="p-2 bg-white rounded-lg border border-slate-200">
-                  <span className="text-[10px] text-slate-500 block">الجلسات الكلية</span>
+                  <span className="text-[10px] text-slate-500 block">الجلسات</span>
                   <span className="font-bold text-slate-900 font-mono">{selectedStudent.totalSessions || 0}</span>
                 </div>
                 <div className="p-2 bg-white rounded-lg border border-slate-200">
-                  <span className="text-[10px] text-emerald-700 block">الحضور الفعلي</span>
+                  <span className="text-[10px] text-emerald-700 block">حضور</span>
                   <span className="font-bold text-emerald-800 font-mono">{selectedStudent.presentCount || 0}</span>
                 </div>
                 <div className="p-2 bg-white rounded-lg border border-slate-200">
-                  <span className="text-[10px] text-rose-700 block">عدد الغيابات</span>
+                  <span className="text-[10px] text-rose-700 block">غيابات</span>
                   <span className="font-bold text-rose-800 font-mono">
                     {selectedStudent.absentCount || 0} من {selectedStudent.maxAbsences || 6}
                   </span>
@@ -1106,11 +899,10 @@ function DoctorCoursesContent() {
               </div>
             </div>
 
-            {/* Modal Actions */}
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
               <Link
-                href={`/dashboard/doctor/grades?sectionId=${selectedSectionId}`}
-                className="px-4 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#14352c] border border-emerald-200 text-xs font-bold transition flex items-center gap-1.5"
+                href={`/dashboard/doctor/grades?sectionId=${activeSectionId}`}
+                className="px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#14352c] border border-emerald-200 text-xs font-bold transition flex items-center gap-1.5"
               >
                 <Award className="w-3.5 h-3.5" />
                 <span>رصد سعي الطالب</span>
@@ -1119,7 +911,7 @@ function DoctorCoursesContent() {
               <button
                 type="button"
                 onClick={() => setSelectedStudent(null)}
-                className="px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition"
               >
                 إغلاق
               </button>

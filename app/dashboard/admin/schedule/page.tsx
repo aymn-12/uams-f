@@ -7,6 +7,7 @@ import { apiFetch } from "@/lib/api";
 import { getStoredUser, User } from "@/lib/auth";
 import { smartCache } from "@/lib/cache";
 import Navbar from "@/components/Navbar";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import Dialog from "@/components/Dialog";
 import CustomSelect, { SelectOption } from "@/components/CustomSelect";
 import {
@@ -222,12 +223,12 @@ export default function AdminInteractiveSchedulePage() {
     setAlert({ title, message, type });
   };
 
-  // Auto-dismiss alert after 6 seconds
+  // Auto-dismiss floating alert after 3.5 seconds
   useEffect(() => {
     if (!alert) return;
     const timer = setTimeout(() => {
       setAlert(null);
-    }, 6000);
+    }, 3500);
     return () => clearTimeout(timer);
   }, [alert]);
 
@@ -974,6 +975,42 @@ export default function AdminInteractiveSchedulePage() {
       {/* Universal Floating Island Capsule Navbar */}
       <Navbar user={user} />
 
+      {/* Floating Temporary Top Alert (shadcn Alert) */}
+      {alert && (
+        <div className="fixed top-20 inset-x-0 z-50 flex justify-center px-4 pointer-events-none transition-all duration-300">
+          <div className="pointer-events-auto max-w-lg w-full shadow-2xl">
+            <Alert
+              variant={alert.type === "danger" ? "destructive" : "default"}
+              className="bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-xl rounded-2xl p-4 text-slate-900 flex items-start justify-between gap-3 relative"
+            >
+              {alert.type === "danger" ? (
+                <AlertCircle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
+              ) : alert.type === "info" ? (
+                <Info className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+              ) : (
+                <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+              )}
+              <div className="flex-1 min-w-0 pr-1">
+                <AlertTitle className="text-sm font-bold text-slate-900 mb-0.5">
+                  {alert.title}
+                </AlertTitle>
+                <AlertDescription className="text-xs text-slate-500 leading-relaxed font-medium">
+                  {alert.message}
+                </AlertDescription>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAlert(null)}
+                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 transition shrink-0"
+                title="إغلاق التنبيه"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </Alert>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Area - with generous top padding to completely prevent navbar overlap */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-16 space-y-6">
         {/* Navigation Breadcrumb & Page Header */}
@@ -988,7 +1025,7 @@ export default function AdminInteractiveSchedulePage() {
             </div>
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 flex items-center gap-2.5">
               <CalendarDays className="w-6 h-6 text-[#14352c]" />
-              جدول الدروس الأسبوعي التفاعلي (السحب والإفلات)
+              جدول الدروس الأسبوعي 
             </h1>
             <p className="text-xs text-slate-600">
               يمكنك سحب أي محاضرة وإفلاتها لتغيير يومها ووقتها لحظياً، أو الضغط على أي خانة فارغة لإضافة مادة.
@@ -1160,55 +1197,6 @@ export default function AdminInteractiveSchedulePage() {
             </div>
           </div>
         </div>
-
-        {/* ═══════════════════════════════════════════════════════════ */}
-        {/* INLINE DESIGN ALERT BANNER (مكون ALERT تصميمي داخل الصفحة)  */}
-        {/* ═══════════════════════════════════════════════════════════ */}
-        {alert && (
-          <div
-            className={`p-4 rounded-2xl border flex items-center justify-between gap-4 transition-all shadow-xs ${
-              alert.type === "danger"
-                ? "bg-rose-50 border-rose-200 text-rose-950"
-                : alert.type === "info"
-                ? "bg-blue-50 border-blue-200 text-blue-950"
-                : "bg-emerald-50 border-emerald-200 text-emerald-950"
-            }`}
-            role="alert"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div
-                className={`size-10 rounded-xl flex items-center justify-center shrink-0 border ${
-                  alert.type === "danger"
-                    ? "bg-rose-100 border-rose-300 text-rose-700"
-                    : alert.type === "info"
-                    ? "bg-blue-100 border-blue-300 text-blue-700"
-                    : "bg-emerald-100 border-emerald-300 text-emerald-700"
-                }`}
-              >
-                {alert.type === "danger" ? (
-                  <AlertCircle className="w-5 h-5" />
-                ) : (
-                  <CheckCircle2 className="w-5 h-5" />
-                )}
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-sm font-bold text-slate-900">{alert.title}</h4>
-                <p className="text-xs text-slate-600 mt-0.5 leading-relaxed font-medium">
-                  {alert.message}
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setAlert(null)}
-              className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-black/5 transition shrink-0"
-              title="إغلاق التنبيه"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
 
         {/* ═══════════════════════════════════════════════════════════ */}
         {/* OFFICIAL MUSTANSIRIYAH TIMETABLE SHEET                      */}

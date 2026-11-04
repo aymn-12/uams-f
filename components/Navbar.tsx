@@ -314,7 +314,7 @@ export default function Navbar({
     setIsLoggingOut(true);
     try {
       await logoutUser();
-      router.replace("/");
+      window.location.href = "/";
     } catch {
       setIsLoggingOut(false);
     }

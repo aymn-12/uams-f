@@ -23,9 +23,47 @@ import {
   AlertCircle,
   Mail,
   Lock,
+  FileEdit,
+  Sparkles,
 } from "lucide-react";
 
 const mono = { className: "font-mono" };
+
+const ACADEMIC_STATUS_MAP: Record<string, { label: string; bg: string; text: string; border: string }> = {
+  REGULAR: { label: "مستمر", bg: "bg-emerald-50", text: "text-emerald-800", border: "border-emerald-200" },
+  PROMOTED: { label: "ناجح", bg: "bg-teal-50", text: "text-teal-800", border: "border-teal-200" },
+  CARRYOVER: { label: "عبور", bg: "bg-indigo-50", text: "text-indigo-800", border: "border-indigo-200" },
+  RETAINED: { label: "راسب", bg: "bg-amber-50", text: "text-amber-800", border: "border-amber-200" },
+  POSTPONED: { label: "مؤجل", bg: "bg-sky-50", text: "text-sky-800", border: "border-sky-200" },
+  DISMISSED: { label: "مرقّن", bg: "bg-rose-50", text: "text-rose-800", border: "border-rose-200" },
+  REINSTATED: { label: "مُعاد", bg: "bg-blue-50", text: "text-blue-800", border: "border-blue-200" },
+  TRANSFERRED: { label: "منقول", bg: "bg-slate-100", text: "text-slate-800", border: "border-slate-300" },
+  GRADUATED: { label: "متخرّج", bg: "bg-emerald-900/10", text: "text-emerald-950 font-bold", border: "border-emerald-400" },
+};
+
+const ACADEMIC_STATUS_OPTIONS: SelectOption[] = [
+  { value: "REGULAR", label: "مستمر (دوام طبيعي)" },
+  { value: "PROMOTED", label: "ناجح (مرحّل إلى المرحلة التالية)" },
+  { value: "CARRYOVER", label: "عبور (تحميل مواد للمرحلة التالية)" },
+  { value: "RETAINED", label: "راسب (باقٍ في مرحلته)" },
+  { value: "POSTPONED", label: "مؤجل (إجازة تأجيل رسمي)" },
+  { value: "DISMISSED", label: "مرقّن (إلغاء القيد وتجميد الحساب)" },
+  { value: "REINSTATED", label: "مُعاد (إعادة قيد واستئناف الدوام)" },
+  { value: "TRANSFERRED", label: "منقول (منقول من/إلى قسم آخر)" },
+  { value: "GRADUATED", label: "متخرّج (إتمام متطلبات البكالوريوس)" },
+];
+
+const STAGE_OPTIONS: SelectOption[] = [
+  { value: "1", label: "المرحلة الأولى (1)" },
+  { value: "2", label: "المرحلة الثانية (2)" },
+  { value: "3", label: "المرحلة الثالثة (3)" },
+  { value: "4", label: "المرحلة الرابعة (4)" },
+];
+
+const STUDY_TYPE_OPTIONS: SelectOption[] = [
+  { value: "MORNING", label: "الدراسة الصباحية" },
+  { value: "EVENING", label: "الدراسة المسائية" },
+];
 
 export default function AdminUsersPage() {
   const router = useRouter();
@@ -56,6 +94,15 @@ export default function AdminUsersPage() {
     message: "",
     type: "success",
   });
+
+  // Academic Status Dialog (For Students)
+  const [academicModal, setAcademicModal] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<any>(null);
+  const [editStatus, setEditStatus] = useState("REGULAR");
+  const [editStage, setEditStage] = useState("1");
+  const [editStudyType, setEditStudyType] = useState("MORNING");
+  const [editNote, setEditNote] = useState("");
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   useEffect(() => {
     const stored = getStoredUser();
@@ -170,6 +217,59 @@ export default function AdminUsersPage() {
         message: err.message || "تعذر تعديل حالة المستخدم.",
         type: "danger",
       });
+    }
+  };
+
+  const openAcademicModal = (targetUser: any) => {
+    setSelectedStudent(targetUser);
+    const sp = targetUser.studentProfile;
+    setEditStatus(sp?.academicStatus || "REGULAR");
+    setEditStage(String(sp?.stage || 1));
+    setEditStudyType(sp?.studyType || "MORNING");
+    setEditNote("");
+    setAcademicModal(true);
+  };
+
+  const handleUpdateAcademicStatus = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStudent) return;
+    setUpdatingStatus(true);
+
+    try {
+      await apiFetch(`/admin/users/${selectedStudent._id}/academic-status`, {
+        method: "PUT",
+        body: JSON.stringify({
+          academicStatus: editStatus,
+          stage: parseInt(editStage, 10),
+          studyType: editStudyType,
+          note: editNote.trim(),
+        }),
+      });
+
+      smartCache.invalidate("/admin/users*");
+      smartCache.invalidate("/dashboards/admin");
+      smartCache.invalidate("/dashboards/student");
+
+      setAcademicModal(false);
+      setDialog({
+        isOpen: true,
+        title: "تم تحديث الحالة والمرحلة الأكاديمية",
+        message: `تم تحديث حالة الطالب (${selectedStudent.name}) إلى [${
+          ACADEMIC_STATUS_MAP[editStatus]?.label || editStatus
+        }] والمرحلة (${editStage}) بنجاح.`,
+        type: "success",
+      });
+
+      loadUsers();
+    } catch (err: any) {
+      setDialog({
+        isOpen: true,
+        title: "خطأ في تحديث الحالة",
+        message: err.message || "تعذر تحديث الحالة الأكاديمية للطالب.",
+        type: "danger",
+      });
+    } finally {
+      setUpdatingStatus(false);
     }
   };
 
@@ -303,6 +403,7 @@ export default function AdminUsersPage() {
                     <th className="py-3.5 px-4">#</th>
                     <th className="py-3.5 px-4">المستخدم والبريد الرسمي</th>
                     <th className="py-3.5 px-4">الدور والصلاحية</th>
+                    <th className="py-3.5 px-4">المرحلة والحالة الأكاديمية</th>
                     <th className="py-3.5 px-4">حالة الحساب</th>
                     <th className="py-3.5 px-4 text-center">التحكم والنشاط</th>
                   </tr>
@@ -338,6 +439,39 @@ export default function AdminUsersPage() {
                           {u.role === "ADMIN" ? "مسؤول نظام" : u.role === "DOCTOR" ? "تدريسي" : "طالب"}
                         </span>
                       </td>
+
+                      {/* Academic Stage & Status (Refined Single-Word Badges) */}
+                      <td className="py-3 px-4">
+                        {u.role === "STUDENT" ? (
+                          <div className="flex flex-col gap-1 items-start">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-slate-800 text-[11px]">
+                                المرحلة {u.studentProfile?.stage || 1}
+                              </span>
+                              <span className="text-[10px] text-slate-400">•</span>
+                              <span className="text-[10px] text-slate-500 font-medium">
+                                {u.studentProfile?.studyType === "EVENING" ? "مسائي" : "صباحي"}
+                              </span>
+                            </div>
+                            {(() => {
+                              const statusKey = u.studentProfile?.academicStatus || "REGULAR";
+                              const statusConfig = ACADEMIC_STATUS_MAP[statusKey] || ACADEMIC_STATUS_MAP.REGULAR;
+                              return (
+                                <span
+                                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}
+                                >
+                                  {statusConfig.label}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                        ) : u.role === "DOCTOR" ? (
+                          <span className="text-slate-500 text-[11px] font-medium">كادر تدريسي</span>
+                        ) : (
+                          <span className="text-slate-500 text-[11px] font-medium">إدارة النظام</span>
+                        )}
+                      </td>
+
                       <td className="py-3 px-4">
                         <span
                           className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
@@ -350,17 +484,30 @@ export default function AdminUsersPage() {
                         </span>
                       </td>
                       <td className="py-3 px-4 text-center">
-                        <button
-                          onClick={() => handleToggleStatus(u)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition inline-flex items-center gap-1 ${
-                            u.status === "ACTIVE"
-                              ? "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200"
-                              : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
-                          }`}
-                        >
-                          <Power className="w-3 h-3" />
-                          {u.status === "ACTIVE" ? "إيقاف الحساب" : "تفعيل الحساب"}
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          {u.role === "STUDENT" && (
+                            <button
+                              onClick={() => openAcademicModal(u)}
+                              className="px-2.5 py-1.5 rounded-lg text-xs font-bold transition inline-flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
+                              title="تحديث الحالة الأكاديمية والمرحلة"
+                            >
+                              <FileEdit className="w-3.5 h-3.5 text-[#14352c]" />
+                              <span>الحالة</span>
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleToggleStatus(u)}
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition inline-flex items-center gap-1 ${
+                              u.status === "ACTIVE"
+                                ? "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200"
+                                : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+                            }`}
+                            title={u.status === "ACTIVE" ? "إيقاف الحساب" : "تفعيل الحساب"}
+                          >
+                            <Power className="w-3.5 h-3.5" />
+                            <span>{u.status === "ACTIVE" ? "إيقاف" : "تفعيل"}</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -446,6 +593,108 @@ export default function AdminUsersPage() {
             >
               {creating ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5" />}
               تأكيد إنشاء الحساب
+            </button>
+          </div>
+        </form>
+      </Dialog>
+
+      {/* Update Student Academic Status Dialog */}
+      <Dialog
+        isOpen={academicModal}
+        onClose={() => setAcademicModal(false)}
+        title="تحديث الحالة والمرحلة الأكاديمية للطالب"
+        maxWidth="max-w-md"
+      >
+        <form onSubmit={handleUpdateAcademicStatus} className="space-y-4">
+          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+            <div className="flex items-center justify-between">
+              <h5 className="text-xs font-bold text-slate-900">{selectedStudent?.name}</h5>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#14352c]/10 text-[#14352c]">
+                طالب جامعي
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 font-mono">{selectedStudent?.email}</p>
+            {selectedStudent?.studentProfile?.studentId && (
+              <p className="text-[10px] text-slate-400 font-mono">
+                الرقم الجامعي: {selectedStudent.studentProfile.studentId}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              الحالة الأكاديمية المنقحة:
+            </label>
+            <CustomSelect
+              options={ACADEMIC_STATUS_OPTIONS}
+              value={editStatus}
+              onChange={(val) => setEditStatus(val)}
+              theme="light"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                المرحلة الدراسية:
+              </label>
+              <CustomSelect
+                options={STAGE_OPTIONS}
+                value={editStage}
+                onChange={(val) => setEditStage(val)}
+                theme="light"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                نوع الدراسة:
+              </label>
+              <CustomSelect
+                options={STUDY_TYPE_OPTIONS}
+                value={editStudyType}
+                onChange={(val) => setEditStudyType(val)}
+                theme="light"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              رقم أو سبب الأمر الإداري (اختياري للتوثيق):
+            </label>
+            <input
+              type="text"
+              value={editNote}
+              onChange={(e) => setEditNote(e.target.value)}
+              placeholder="مثال: أمر إداري ذي العدد 104 في 2026/11/4"
+              className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#14352c] focus:ring-1 focus:ring-[#14352c] transition"
+            />
+          </div>
+
+          <div className="pt-3 flex justify-end gap-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setAcademicModal(false)}
+              className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 transition"
+            >
+              إلغاء
+            </button>
+            <button
+              type="submit"
+              disabled={updatingStatus}
+              className="px-5 py-2 rounded-xl bg-[#14352c] hover:bg-[#1b4a3d] text-white text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
+            >
+              {updatingStatus ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  جارٍ التحديث...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  حفظ التعديل الأكاديمي
+                </>
+              )}
             </button>
           </div>
         </form>
