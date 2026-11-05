@@ -9,7 +9,6 @@ import { smartCache } from "@/lib/cache";
 import Navbar from '@/components/Navbar';
 import Dialog from "@/components/Dialog";
 import CustomSelect, { SelectOption } from "@/components/CustomSelect";
-import ClickDatePicker from "@/components/ClickDatePicker";
 import {
   CalendarDays,
   Plus,
@@ -332,6 +331,14 @@ export default function StudentPlannerPage() {
     }
   };
 
+  const getTodayFormatted = () => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}/${m}/${day}`;
+  };
+
   // 1. Update Page
   const handleUpdatePage = () => {
     if (!nbPageInput.trim() || !activeNotebookItem) return;
@@ -364,7 +371,7 @@ export default function StudentPlannerPage() {
         {
           id: Math.random().toString(36).substring(2, 9),
           title: nbExamTitle.trim(),
-          date: nbExamDate,
+          date: getTodayFormatted(),
           completed: false,
         },
       ],
@@ -402,7 +409,7 @@ export default function StudentPlannerPage() {
         {
           id: Math.random().toString(36).substring(2, 9),
           title: nbQuizTitle.trim(),
-          date: nbQuizDate,
+          date: getTodayFormatted(),
           completed: false,
         },
       ],
@@ -440,7 +447,7 @@ export default function StudentPlannerPage() {
         {
           id: Math.random().toString(36).substring(2, 9),
           title: nbAssignmentTitle.trim(),
-          date: nbAssignmentDate,
+          date: getTodayFormatted(),
           completed: false,
         },
       ],
@@ -838,29 +845,24 @@ export default function StudentPlannerPage() {
                   )}
                 </div>
 
-                {/* Input row: Input on RIGHT, Date in MIDDLE, Button on LEFT */}
+                {/* Input row: Input on RIGHT, Button on LEFT (Date is set automatically) */}
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
                     value={nbExamTitle}
                     onChange={(e) => setNbExamTitle(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleAddExam()}
-                    placeholder="اسم الامتحان"
+                    placeholder="اسم الامتحان أو المادة المحددة..."
                     className="flex-1 bg-white border border-slate-200 focus:border-[#0284c7] focus:ring-2 focus:ring-[#0284c7]/15 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 outline-none text-right font-medium shadow-2xs transition-all"
-                  />
-                  <ClickDatePicker
-                    value={nbExamDate}
-                    onChange={setNbExamDate}
-                    placeholder="تاريخ الامتحان"
-                    className="w-36 shrink-0"
                   />
                   <button
                     type="button"
                     onClick={handleAddExam}
-                    className="w-10 h-10 rounded-xl bg-[#0284c7] hover:bg-[#0369a1] active:scale-95 text-white flex items-center justify-center font-bold text-lg shadow-xs transition-all cursor-pointer shrink-0"
-                    title="إضافة امتحان"
+                    className="px-4 h-10 rounded-xl bg-[#0284c7] hover:bg-[#0369a1] active:scale-95 text-white flex items-center gap-1.5 font-bold text-xs shadow-xs transition-all cursor-pointer shrink-0"
+                    title="إضافة امتحان (تاريخ اليوم تلقائي)"
                   >
-                    <Plus className="w-5 h-5" />
+                    <Plus className="w-4 h-4" />
+                    <span>إضافة</span>
                   </button>
                 </div>
 
@@ -1001,29 +1003,24 @@ export default function StudentPlannerPage() {
                   )}
                 </div>
 
-                {/* Input row: Input on RIGHT, Date in MIDDLE, Button on LEFT */}
+                {/* Input row: Input on RIGHT, Button on LEFT (Date is set automatically) */}
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
                     value={nbAssignmentTitle}
                     onChange={(e) => setNbAssignmentTitle(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleAddAssignment()}
-                    placeholder="عنوان الواجب"
+                    placeholder="عنوان الواجب أو التكليف المطلوب..."
                     className="flex-1 bg-white border border-slate-200 focus:border-[#0284c7] focus:ring-2 focus:ring-[#0284c7]/15 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 outline-none text-right font-medium shadow-2xs transition-all"
-                  />
-                  <ClickDatePicker
-                    value={nbAssignmentDate}
-                    onChange={setNbAssignmentDate}
-                    placeholder="تاريخ الواجب"
-                    className="w-36 shrink-0"
                   />
                   <button
                     type="button"
                     onClick={handleAddAssignment}
-                    className="w-10 h-10 rounded-xl bg-[#0284c7] hover:bg-[#0369a1] active:scale-95 text-white flex items-center justify-center font-bold text-lg shadow-xs transition-all cursor-pointer shrink-0"
-                    title="إضافة واجب"
+                    className="px-4 h-10 rounded-xl bg-[#0284c7] hover:bg-[#0369a1] active:scale-95 text-white flex items-center gap-1.5 font-bold text-xs shadow-xs transition-all cursor-pointer shrink-0"
+                    title="إضافة واجب (تاريخ اليوم تلقائي)"
                   >
-                    <Plus className="w-5 h-5" />
+                    <Plus className="w-4 h-4" />
+                    <span>إضافة</span>
                   </button>
                 </div>
 
@@ -1093,29 +1090,24 @@ export default function StudentPlannerPage() {
                   )}
                 </div>
 
-                {/* Input row: Input on RIGHT, Date in MIDDLE, Button on LEFT */}
+                {/* Input row: Input on RIGHT, Button on LEFT (Date is set automatically) */}
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
                     value={nbQuizTitle}
                     onChange={(e) => setNbQuizTitle(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleAddQuiz()}
-                    placeholder="عنوان الكوز"
+                    placeholder="موضوع الكوز أو المادة المحددة..."
                     className="flex-1 bg-white border border-slate-200 focus:border-[#0284c7] focus:ring-2 focus:ring-[#0284c7]/15 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 outline-none text-right font-medium shadow-2xs transition-all"
-                  />
-                  <ClickDatePicker
-                    value={nbQuizDate}
-                    onChange={setNbQuizDate}
-                    placeholder="تاريخ الكوز"
-                    className="w-36 shrink-0"
                   />
                   <button
                     type="button"
                     onClick={handleAddQuiz}
-                    className="w-10 h-10 rounded-xl bg-[#0284c7] hover:bg-[#0369a1] active:scale-95 text-white flex items-center justify-center font-bold text-lg shadow-xs transition-all cursor-pointer shrink-0"
-                    title="إضافة كوز"
+                    className="px-4 h-10 rounded-xl bg-[#0284c7] hover:bg-[#0369a1] active:scale-95 text-white flex items-center gap-1.5 font-bold text-xs shadow-xs transition-all cursor-pointer shrink-0"
+                    title="إضافة كوز (تاريخ اليوم تلقائي)"
                   >
-                    <Plus className="w-5 h-5" />
+                    <Plus className="w-4 h-4" />
+                    <span>إضافة</span>
                   </button>
                 </div>
 
