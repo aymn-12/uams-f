@@ -374,12 +374,12 @@ export default function Navbar({
         <nav
           ref={navRef}
           dir="rtl"
-          className="pointer-events-auto bg-[#18181b] border border-white/10 text-white rounded-full p-2 pl-2.5 pr-2.5 shadow-2xl shadow-black/40 backdrop-blur-xl flex items-center justify-between gap-2 sm:gap-4 md:gap-6 max-w-fit w-full transition-all duration-300"
+          className="pointer-events-auto bg-gradient-to-b from-[#232328] via-[#18181b] to-[#101012] border-t border-white/[0.18] border-b border-black/60 border-x border-white/[0.08] text-white rounded-full p-2 pl-2.5 pr-2.5 shadow-[inset_0_1.5px_1px_rgba(255,255,255,0.18),inset_0_-2px_4px_rgba(0,0,0,0.6),0_14px_30px_-6px_rgba(0,0,0,0.55),0_6px_14px_-3px_rgba(0,0,0,0.4)] backdrop-blur-xl flex items-center justify-between gap-2 sm:gap-4 md:gap-6 max-w-fit w-full transition-all duration-300"
         >
           {/* Right: Circular Brand Button (Mustansiriyah University Official Emblem) */}
           <Link
             href={isDashboard ? homeHref : "/"}
-            className="w-10 h-10 rounded-full bg-white flex items-center justify-center shrink-0 shadow-sm hover:scale-105 active:scale-95 transition-transform duration-200 p-1 overflow-hidden"
+            className="w-10 h-10 rounded-full bg-white flex items-center justify-center shrink-0 border border-white/80 shadow-[inset_0_1.5px_2px_rgba(255,255,255,0.9),inset_0_-1.5px_2px_rgba(0,0,0,0.1),0_2px_6px_rgba(0,0,0,0.3)] hover:scale-105 active:scale-95 transition-transform duration-200 p-1 overflow-hidden"
             title="الجامعة المستنصرية - UAMS"
           >
             <img
@@ -397,7 +397,7 @@ export default function Navbar({
                 href={homeHref}
                 className={`px-3.5 py-1.5 rounded-full transition-all duration-200 ${
                   pathname === homeHref
-                    ? "bg-white text-slate-950 font-bold shadow-xs"
+                    ? "bg-white text-slate-950 font-bold border border-white/80 shadow-[inset_0_1.5px_2px_rgba(255,255,255,0.9),inset_0_-1.5px_2px_rgba(0,0,0,0.1),0_4px_12px_rgba(0,0,0,0.3)]"
                     : "text-slate-300 hover:text-white hover:bg-white/10"
                 }`}
               >
@@ -416,23 +416,23 @@ export default function Navbar({
                       onClick={() => setActiveMenu(isOpen ? null : group.label)}
                       className={`px-3 py-1.5 rounded-full transition-all duration-200 flex items-center gap-1.5 ${
                         isOpen
-                          ? "bg-white text-slate-950 font-bold shadow-xs"
+                          ? "bg-white text-slate-950 font-bold border border-white/80 shadow-[inset_1.5px_1.5px_3px_rgba(0,0,0,0.18),inset_-1px_-1px_2px_rgba(255,255,255,0.8)]"
                           : active
-                          ? "bg-white/15 text-white font-bold"
+                          ? "bg-white/15 text-white font-bold border border-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)]"
                           : "text-slate-300 hover:text-white hover:bg-white/10"
                       }`}
                     >
                       <span>{group.label}</span>
                       <ChevronDown
                         className={`w-3.5 h-3.5 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-                          isOpen ? "rotate-180" : "text-slate-400"
+                          isOpen ? "rotate-180 text-slate-950" : "text-slate-400"
                         }`}
                       />
                     </button>
 
                     {/* Smooth Animated Dropdown Popover */}
                     <div
-                      className={`absolute top-full mt-3 w-64 bg-white text-slate-900 rounded-2xl p-2 border border-slate-200/90 shadow-[0_20px_50px_rgba(0,0,0,0.18)] z-50 text-right space-y-1 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${getGroupPositionClasses(
+                      className={`absolute top-full mt-3 w-72 bg-white/95 backdrop-blur-xl text-slate-900 rounded-3xl p-2.5 border border-white/80 shadow-[0_22px_50px_-10px_rgba(0,0,0,0.18),0_4px_14px_rgba(0,0,0,0.05),inset_0_1px_1.5px_rgba(255,255,255,0.95)] z-50 text-right space-y-1.5 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${getGroupPositionClasses(
                         group.align
                       )} ${
                         isOpen
@@ -449,13 +449,13 @@ export default function Navbar({
                             key={item.href}
                             href={item.href}
                             onClick={() => setActiveMenu(null)}
-                            className={`flex items-start gap-3 p-2.5 rounded-xl transition-all duration-200 ease-out hover:scale-[1.01] ${
+                            className={`flex items-start gap-3 p-2.5 sm:p-3 rounded-2xl transition-all duration-200 border ${
                               itemActive
-                                ? "bg-slate-100 text-slate-950 font-bold"
-                                : "text-slate-700 hover:text-slate-950 hover:bg-slate-50 font-medium"
+                                ? "bg-slate-100/90 text-slate-950 font-bold border-slate-200/80 shadow-[inset_1px_1px_2px_rgba(0,0,0,0.05),inset_-1px_-1px_2px_rgba(255,255,255,0.9)]"
+                                : "text-slate-700 hover:text-slate-950 hover:bg-slate-50/90 font-medium border-transparent hover:border-slate-200/60 shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
                             }`}
                           >
-                            <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 text-[#14352c] mt-0.5">
+                            <div className="size-9 rounded-2xl bg-white border border-slate-200/80 flex items-center justify-center shrink-0 text-[#14352c] mt-0.5 shadow-[inset_0_1.5px_2px_rgba(255,255,255,0.95),0_2px_5px_rgba(0,0,0,0.04)]">
                               <Icon className="w-4 h-4" />
                             </div>
                             <div className="space-y-0.5 min-w-0">
@@ -504,21 +504,21 @@ export default function Navbar({
                     type="button"
                     onClick={handleOpenCard}
                     title="البطاقة الجامعية الإلكترونية"
-                    className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-slate-200 flex items-center justify-center transition-colors"
+                    className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-slate-200 border border-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] flex items-center justify-center transition-all active:scale-95 active:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.4)]"
                   >
                     <QrCode className="w-4 h-4" />
                   </button>
                 )}
 
-                {/* White Capsule Pill Button (User Email / Profile Trigger) */}
+                {/* Neumorphic White Pill Button (User Email / Profile Trigger) */}
                 <div className="relative">
                   <button
                     type="button"
                     onClick={() => setActiveMenu(activeMenu === "profile" ? null : "profile")}
-                    className={`rounded-full px-4 py-2 text-xs font-bold active:scale-95 transition-all duration-200 shadow-sm shrink-0 whitespace-nowrap flex items-center gap-2 ${
+                    className={`rounded-full px-4 py-2 text-xs font-bold transition-all duration-200 shrink-0 whitespace-nowrap flex items-center gap-2 border ${
                       activeMenu === "profile"
-                        ? "bg-slate-100 text-slate-950 ring-2 ring-white/20"
-                        : "bg-white text-slate-950 hover:bg-slate-100"
+                        ? "bg-slate-100 text-slate-950 border-white/60 shadow-[inset_2px_2px_5px_rgba(0,0,0,0.2),inset_-1.5px_-1.5px_3px_rgba(255,255,255,0.8)]"
+                        : "bg-white text-slate-950 border-white/80 shadow-[inset_0_2px_3px_rgba(255,255,255,0.95),inset_0_-2px_3px_rgba(0,0,0,0.1),0_4px_14px_rgba(0,0,0,0.35)] active:scale-[0.98] active:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.2)]"
                     }`}
                     title="الملف الشخصي"
                   >
@@ -535,15 +535,15 @@ export default function Navbar({
                   {/* Smooth Animated Profile Dropdown Menu */}
                   <div
                     dir="rtl"
-                    className={`absolute left-0 mt-3 w-64 rounded-2xl border border-slate-200/90 bg-white p-2 text-slate-900 shadow-[0_20px_50px_rgba(0,0,0,0.18)] z-50 text-right space-y-1 origin-top-left transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+                    className={`absolute left-0 mt-3 w-72 rounded-3xl border border-white/80 bg-white/95 backdrop-blur-xl p-2.5 text-slate-900 shadow-[0_22px_50px_-10px_rgba(0,0,0,0.18),0_4px_14px_rgba(0,0,0,0.05),inset_0_1px_1.5px_rgba(255,255,255,0.95)] z-50 text-right space-y-1.5 origin-top-left transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
                       activeMenu === "profile"
                         ? "opacity-100 translate-y-0 scale-100 pointer-events-auto"
                         : "opacity-0 -translate-y-2 scale-95 pointer-events-none"
                     }`}
                   >
-                    <div className="px-3.5 py-2.5 bg-slate-50 rounded-xl border border-slate-100 space-y-0.5">
+                    <div className="px-3.5 py-3 bg-gradient-to-b from-slate-50 to-slate-100/70 rounded-2xl border border-slate-200/80 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9),0_1px_3px_rgba(0,0,0,0.04)] space-y-0.5">
                       <p className="text-xs font-bold text-slate-900 truncate">{user?.name || "المستخدم"}</p>
-                      <p className="text-[11px] text-emerald-800 font-semibold">
+                      <p className="text-[11px] text-emerald-800 font-bold">
                         {isStudent ? "طالب منتظم" : isDoctor ? "أستاذ جامعي" : "مدير النظام الأكاديمي"}
                       </p>
                     </div>
@@ -553,29 +553,33 @@ export default function Navbar({
                         <Link
                           href="/dashboard/student/profile"
                           onClick={() => setActiveMenu(null)}
-                          className="w-full px-3 py-2 rounded-xl text-xs font-medium text-slate-700 hover:text-slate-950 hover:bg-slate-50 transition flex items-center gap-2"
+                          className="w-full px-3 py-2.5 rounded-2xl text-xs font-semibold text-slate-700 hover:text-slate-950 hover:bg-slate-50/90 transition flex items-center gap-2.5 border border-transparent hover:border-slate-200/60 shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
                         >
-                          <UserIcon className="w-4 h-4 text-slate-500" />
+                          <div className="size-8 rounded-xl bg-white border border-slate-200/80 flex items-center justify-center shrink-0 text-slate-600 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9),0_1px_3px_rgba(0,0,0,0.04)]">
+                            <UserIcon className="w-4 h-4" />
+                          </div>
                           <span>السجل الأكاديمي والملف</span>
                         </Link>
 
                         <button
                           type="button"
                           onClick={handleOpenCard}
-                          className="w-full px-3 py-2 rounded-xl text-xs font-medium text-slate-700 hover:text-slate-950 hover:bg-slate-50 transition flex items-center gap-2"
+                          className="w-full px-3 py-2.5 rounded-2xl text-xs font-semibold text-slate-700 hover:text-slate-950 hover:bg-slate-50/90 transition flex items-center gap-2.5 border border-transparent hover:border-slate-200/60 shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
                         >
-                          <QrCode className="w-4 h-4 text-[#14352c]" />
+                          <div className="size-8 rounded-xl bg-white border border-slate-200/80 flex items-center justify-center shrink-0 text-[#14352c] shadow-[inset_0_1px_1px_rgba(255,255,255,0.9),0_1px_3px_rgba(0,0,0,0.04)]">
+                            <QrCode className="w-4 h-4" />
+                          </div>
                           <span>عرض الهوية الرقمية</span>
                         </button>
                       </>
                     )}
 
-                    <div className="pt-1 border-t border-slate-100">
+                    <div className="pt-1.5 border-t border-slate-200/70">
                       <button
                         type="button"
                         onClick={handleLogout}
                         disabled={isLoggingOut}
-                        className="w-full px-3 py-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 transition flex items-center gap-2 disabled:opacity-50"
+                        className="w-full px-3 py-2 rounded-2xl text-xs font-bold text-rose-600 hover:bg-rose-50/80 transition flex items-center gap-2.5 disabled:opacity-50"
                       >
                         {isLoggingOut ? (
                           <RefreshCw className="w-4 h-4 animate-spin" />
@@ -594,7 +598,7 @@ export default function Navbar({
                 {user ? (
                   <Link
                     href={homeHref}
-                    className="bg-white text-slate-950 rounded-full px-5 py-2 text-xs sm:text-sm font-bold hover:bg-slate-100 active:scale-95 transition-all duration-200 shadow-sm shrink-0 whitespace-nowrap flex items-center gap-1.5"
+                    className="rounded-full bg-white text-slate-950 border border-white/80 shadow-[inset_0_2px_3px_rgba(255,255,255,0.95),inset_0_-2px_3px_rgba(0,0,0,0.1),0_4px_14px_rgba(0,0,0,0.35)] active:scale-[0.98] active:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.2)] px-5 py-2 text-xs sm:text-sm font-bold transition-all duration-200 shrink-0 whitespace-nowrap flex items-center gap-1.5"
                   >
                     <span>لوحة التحكم</span>
                     <ArrowUpRight className="w-3.5 h-3.5 text-slate-700" />
@@ -603,7 +607,7 @@ export default function Navbar({
                   <button
                     type="button"
                     onClick={onLoginClick}
-                    className="bg-white text-slate-950 rounded-full px-5 py-2 text-xs sm:text-sm font-bold hover:bg-slate-100 active:scale-95 transition-all duration-200 shadow-sm shrink-0 whitespace-nowrap flex items-center gap-1.5"
+                    className="rounded-full bg-white text-slate-950 border border-white/80 shadow-[inset_0_2px_3px_rgba(255,255,255,0.95),inset_0_-2px_3px_rgba(0,0,0,0.1),0_4px_14px_rgba(0,0,0,0.35)] active:scale-[0.98] active:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.2)] px-5 py-2 text-xs sm:text-sm font-bold transition-all duration-200 shrink-0 whitespace-nowrap flex items-center gap-1.5"
                   >
                     <span>{ctaText}</span>
                     <ArrowUpRight className="w-3.5 h-3.5 text-slate-700" />
@@ -611,7 +615,7 @@ export default function Navbar({
                 ) : (
                   <Link
                     href={ctaHref}
-                    className="bg-white text-slate-950 rounded-full px-5 py-2 text-xs sm:text-sm font-bold hover:bg-slate-100 active:scale-95 transition-all duration-200 shadow-sm shrink-0 whitespace-nowrap flex items-center gap-1.5"
+                    className="rounded-full bg-white text-slate-950 border border-white/80 shadow-[inset_0_2px_3px_rgba(255,255,255,0.95),inset_0_-2px_3px_rgba(0,0,0,0.1),0_4px_14px_rgba(0,0,0,0.35)] active:scale-[0.98] active:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.2)] px-5 py-2 text-xs sm:text-sm font-bold transition-all duration-200 shrink-0 whitespace-nowrap flex items-center gap-1.5"
                   >
                     <span>{ctaText}</span>
                     <ArrowUpRight className="w-3.5 h-3.5 text-slate-700" />

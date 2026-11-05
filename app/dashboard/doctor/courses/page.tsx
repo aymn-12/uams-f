@@ -9,6 +9,7 @@ import { smartCache } from "@/lib/cache";
 import Navbar from "@/components/Navbar";
 import Dialog from "@/components/Dialog";
 import CustomSelect, { SelectOption } from "@/components/CustomSelect";
+import LatticeLoader from "@/components/ui/lattice-loader";
 import {
   BookOpen,
   Calendar,
@@ -282,7 +283,17 @@ function DoctorCoursesContent() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-900">
-        <RefreshCw className="w-8 h-8 animate-spin text-[#14352c]" />
+        <LatticeLoader
+          status="working"
+          label="تحميل المقررات والشُعب..."
+          pattern="orbit"
+          grid={3}
+          cellSize={5}
+          gap={2}
+          fontSize={14}
+          showTimer={false}
+          color="#14352c"
+        />
       </div>
     );
   }
@@ -707,9 +718,18 @@ function DoctorCoursesContent() {
           {/* Students Table */}
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden max-h-[420px] overflow-y-auto">
             {studentsLoading ? (
-              <div className="py-16 text-center space-y-2">
-                <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#14352c]" />
-                <p className="text-xs text-slate-500 font-medium">جارٍ تحميل قائمة الطلبة...</p>
+              <div className="py-16 text-center flex flex-col items-center justify-center gap-3">
+                <LatticeLoader
+                  status="working"
+                  label="جارٍ تحميل قائمة الطلبة..."
+                  pattern="orbit"
+                  grid={3}
+                  cellSize={4.5}
+                  gap={2}
+                  fontSize={12}
+                  showTimer={true}
+                  color="#14352c"
+                />
               </div>
             ) : filteredStudents.length === 0 ? (
               <div className="py-12 text-center text-xs text-slate-500">
@@ -928,7 +948,17 @@ export default function DoctorCoursesPage() {
     <Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-900">
-          <RefreshCw className="w-8 h-8 animate-spin text-[#14352c]" />
+          <LatticeLoader
+            status="working"
+            label="تحميل المقررات والشُعب..."
+            pattern="orbit"
+            grid={3}
+            cellSize={5}
+            gap={2}
+            fontSize={14}
+            showTimer={false}
+            color="#14352c"
+          />
         </div>
       }
     >

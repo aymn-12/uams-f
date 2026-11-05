@@ -10,6 +10,7 @@ import { getStoredUser, User } from "@/lib/auth";
 import Navbar from '@/components/Navbar';
 import Dialog from "@/components/Dialog";
 import CustomSelect from "@/components/CustomSelect";
+import LatticeLoader from "@/components/ui/lattice-loader";
 import {
   MessagesSquare,
   HelpCircle,
@@ -158,7 +159,17 @@ export default function DoctorQuestionsPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-900">
-        <RefreshCw className="w-8 h-8 animate-spin text-[#14352c]" />
+        <LatticeLoader
+          status="working"
+          label="تحميل استفسارات الطلبة..."
+          pattern="orbit"
+          grid={3}
+          cellSize={5}
+          gap={2}
+          fontSize={14}
+          showTimer={false}
+          color="#14352c"
+        />
       </div>
     );
   }

@@ -11,6 +11,9 @@ import Navbar from "@/components/Navbar";
 import Dialog from "@/components/Dialog";
 import CustomSelect, { SelectOption } from "@/components/CustomSelect";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import LatticeLoader from "@/components/ui/lattice-loader";
+import FuseButton from "@/components/ui/fuse-button";
+import HoldButton from "@/components/ui/hold-button";
 import {
   FileCheck2,
   Plus,
@@ -187,8 +190,8 @@ function DoctorAssignmentsContent() {
   };
 
   // Create Assignment
-  const handleCreateAssignment = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreateAssignment = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!selectedSection || !title.trim() || !dueDate) return;
     setCreating(true);
 
@@ -415,7 +418,17 @@ function DoctorAssignmentsContent() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-900">
-        <RefreshCw className="w-8 h-8 animate-spin text-[#14352c]" />
+        <LatticeLoader
+          status="working"
+          label="تحميل الواجبات والتكليفات..."
+          pattern="orbit"
+          grid={3}
+          cellSize={5}
+          gap={2}
+          fontSize={14}
+          showTimer={false}
+          color="#14352c"
+        />
       </div>
     );
   }
@@ -621,9 +634,18 @@ function DoctorAssignmentsContent() {
         {/* ASSIGNMENTS GRID WITH REAL-TIME PROGRESS                    */}
         {/* ═══════════════════════════════════════════════════════════ */}
         {fetching ? (
-          <div className="py-20 text-center bg-white rounded-2xl border border-slate-200 space-y-2">
-            <RefreshCw className="w-8 h-8 animate-spin mx-auto text-[#14352c]" />
-            <p className="text-xs text-slate-500 font-medium">جارٍ تحميل التكليفات الأكاديمية...</p>
+          <div className="py-20 text-center bg-white rounded-2xl border border-slate-200 flex flex-col items-center justify-center gap-3">
+            <LatticeLoader
+              status="working"
+              label="جارٍ تحميل التكليفات الأكاديمية..."
+              pattern="snake"
+              grid={4}
+              cellSize={5}
+              gap={2}
+              fontSize={13}
+              showTimer={true}
+              color="#14352c"
+            />
           </div>
         ) : filteredAssignments.length === 0 ? (
           <div className="py-20 text-center bg-white rounded-2xl border border-dashed border-slate-300 space-y-3 p-6">
@@ -834,9 +856,18 @@ function DoctorAssignmentsContent() {
           {/* Submissions List with Inline Fast Grading */}
           <div className="space-y-3.5 max-h-[460px] overflow-y-auto pr-1">
             {loadingSubmissions ? (
-              <div className="py-16 text-center space-y-2">
-                <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#14352c]" />
-                <p className="text-xs text-slate-500 font-medium">جارٍ جلب إجابات وتسليمات الطلبة...</p>
+              <div className="py-16 text-center flex flex-col items-center justify-center gap-3">
+                <LatticeLoader
+                  status="working"
+                  label="جارٍ جلب إجابات وتسليمات الطلبة..."
+                  pattern="orbit"
+                  grid={3}
+                  cellSize={4.5}
+                  gap={2}
+                  fontSize={12}
+                  showTimer={true}
+                  color="#14352c"
+                />
               </div>
             ) : filteredSubmissions.length === 0 ? (
               <div className="py-14 text-center text-xs text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-200">
@@ -1132,23 +1163,23 @@ function DoctorAssignmentsContent() {
             >
               إلغاء
             </button>
-            <button
-              type="submit"
-              disabled={creating}
-              className="px-5 py-2.5 rounded-xl bg-[#14352c] hover:bg-[#1b4a3d] text-white text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
+            <HoldButton
+              size="sm"
+              radius={12}
+              backgroundColor="#14352c"
+              fillColor="#059669"
+              textColor="#ffffff"
+              fillTextColor="#ffffff"
+              holdTime={1500}
+              fillDirection="up"
+              doneLabel="تم نشر التكليف بنجاح!"
+              icon={<Plus className="w-3.5 h-3.5 text-emerald-300" />}
+              doneIcon={<CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />}
+              disabled={creating || !selectedSection || !title.trim() || !dueDate}
+              onHold={() => handleCreateAssignment()}
             >
-              {creating ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  جارٍ النشر...
-                </>
-              ) : (
-                <>
-                  <Plus className="w-3.5 h-3.5" />
-                  تأكيد ونشر التكليف
-                </>
-              )}
-            </button>
+              اضغط مطولاً لنشر التكليف
+            </HoldButton>
           </div>
         </form>
       </Dialog>
@@ -1186,24 +1217,22 @@ function DoctorAssignmentsContent() {
               إلغاء
             </button>
 
-            <button
-              type="button"
-              onClick={confirmDeleteAssignment}
+            <FuseButton
+              label="تأكيد الحذف النهائي"
+              undoLabel="تراجع عن الحذف"
+              doneLabel="تم حذف التكليف"
+              icon={<Trash2 className="w-3.5 h-3.5" />}
+              color="#ffffff"
+              background="#e11d48"
+              fuseColor="#facc15"
+              size="sm"
+              radius={12}
+              undoWindow={3500}
+              fuse="outline"
+              commitOn="fuseEnd"
               disabled={deleting}
-              className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-50"
-            >
-              {deleting ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  جارٍ الحذف...
-                </>
-              ) : (
-                <>
-                  <Trash2 className="w-3.5 h-3.5" />
-                  تأكيد الحذف النهائي
-                </>
-              )}
-            </button>
+              onCommit={confirmDeleteAssignment}
+            />
           </div>
         </div>
       </Dialog>
@@ -1216,7 +1245,17 @@ export default function DoctorAssignmentsPage() {
     <Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-900">
-          <RefreshCw className="w-8 h-8 animate-spin text-[#14352c]" />
+          <LatticeLoader
+            status="working"
+            label="تحميل الواجبات والتكليفات..."
+            pattern="orbit"
+            grid={3}
+            cellSize={5}
+            gap={2}
+            fontSize={14}
+            showTimer={false}
+            color="#14352c"
+          />
         </div>
       }
     >

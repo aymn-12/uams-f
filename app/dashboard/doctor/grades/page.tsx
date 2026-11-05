@@ -11,6 +11,9 @@ import Navbar from "@/components/Navbar";
 import Dialog from "@/components/Dialog";
 import CustomSelect, { SelectOption } from "@/components/CustomSelect";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import LatticeLoader from "@/components/ui/lattice-loader";
+import FuseButton from "@/components/ui/fuse-button";
+import HoldButton from "@/components/ui/hold-button";
 import {
   Award,
   Plus,
@@ -368,8 +371,8 @@ function DoctorGradesContent() {
   };
 
   // Save Grades
-  const handleSaveGrades = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveGrades = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!recordModal || !selectedSection) return;
     setSavingGrades(true);
 
@@ -561,7 +564,17 @@ function DoctorGradesContent() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-900">
-        <RefreshCw className="w-8 h-8 animate-spin text-[#14352c]" />
+        <LatticeLoader
+          status="working"
+          label="تحميل سجل الدرجات..."
+          pattern="orbit"
+          grid={3}
+          cellSize={5}
+          gap={2}
+          fontSize={14}
+          showTimer={false}
+          color="#14352c"
+        />
       </div>
     );
   }
@@ -645,11 +658,23 @@ function DoctorGradesContent() {
               title="تصدير شيت السعي والدرجات الرسمي إلى Excel"
             >
               {exportingExcel ? (
-                <RefreshCw className="w-4 h-4 animate-spin text-emerald-700" />
+                <LatticeLoader
+                  status="working"
+                  label="تصدير Excel..."
+                  pattern="orbit"
+                  grid={3}
+                  cellSize={3.5}
+                  gap={1.5}
+                  fontSize={11}
+                  showTimer={true}
+                  color="#065f46"
+                />
               ) : (
-                <Download className="w-4 h-4 text-emerald-700" />
+                <>
+                  <Download className="w-4 h-4 text-emerald-700" />
+                  <span>تصدير Excel</span>
+                </>
               )}
-              <span>تصدير Excel</span>
             </button>
 
             {/* Create Exam Button */}
@@ -886,9 +911,18 @@ function DoctorGradesContent() {
 
             {/* Matrix Sheet Table */}
             {fetching ? (
-              <div className="py-20 text-center bg-white rounded-2xl border border-slate-200 shadow-xs">
-                <RefreshCw className="w-7 h-7 animate-spin mx-auto text-[#14352c]" />
-                <p className="text-xs text-slate-500 font-bold mt-2.5">جارٍ جلب وتحديث سجل السعي...</p>
+              <div className="py-20 text-center bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-col items-center justify-center gap-3">
+                <LatticeLoader
+                  status="working"
+                  label="جارٍ جلب وتحليل سجل السعي التراكمي..."
+                  pattern="snake"
+                  grid={4}
+                  cellSize={5}
+                  gap={2}
+                  fontSize={13}
+                  showTimer={true}
+                  color="#14352c"
+                />
               </div>
             ) : studentRows.length === 0 ? (
               <div className="p-12 text-center bg-white rounded-2xl border border-dashed border-slate-300 space-y-3">
@@ -1031,9 +1065,18 @@ function DoctorGradesContent() {
             </div>
 
             {fetching ? (
-              <div className="py-16 text-center bg-white rounded-2xl border border-slate-200 shadow-xs">
-                <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#14352c]" />
-                <p className="text-xs text-slate-500 font-medium mt-2">جارٍ جلب الاختبارات...</p>
+              <div className="py-16 text-center bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-col items-center justify-center gap-3">
+                <LatticeLoader
+                  status="working"
+                  label="جارٍ جلب الاختبارات والتقييمات..."
+                  pattern="orbit"
+                  grid={3}
+                  cellSize={4.5}
+                  gap={2}
+                  fontSize={12}
+                  showTimer={true}
+                  color="#14352c"
+                />
               </div>
             ) : safeExams.length === 0 ? (
               <div className="p-12 text-center bg-white rounded-2xl border border-dashed border-slate-300 space-y-3">
@@ -1442,18 +1485,23 @@ function DoctorGradesContent() {
             >
               إلغاء
             </button>
-            <button
-              type="submit"
+            <HoldButton
+              size="sm"
+              radius={12}
+              backgroundColor="#14352c"
+              fillColor="#059669"
+              textColor="#ffffff"
+              fillTextColor="#ffffff"
+              holdTime={1600}
+              fillDirection="up"
+              doneLabel="تم اعتماد وحفظ الدرجات"
+              icon={<Save className="w-3.5 h-3.5 text-emerald-300" />}
+              doneIcon={<CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />}
               disabled={savingGrades || studentRows.length === 0}
-              className="px-5 py-2.5 rounded-xl bg-[#14352c] hover:bg-[#1b4a3d] text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+              onHold={() => handleSaveGrades()}
             >
-              {savingGrades ? (
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Save className="w-3.5 h-3.5" />
-              )}
-              اعتماد وحفظ الدرجات
-            </button>
+              اضغط مطولاً لاعتماد الدرجات
+            </HoldButton>
           </div>
         </form>
       </Dialog>
@@ -1486,19 +1534,22 @@ function DoctorGradesContent() {
             >
               إلغاء التراجع
             </button>
-            <button
-              type="button"
+            <FuseButton
+              label="تأكيد الحذف النهائي"
+              undoLabel="تراجع عن الحذف"
+              doneLabel="تم حذف الامتحان"
+              icon={<Trash2 className="w-3.5 h-3.5" />}
+              color="#ffffff"
+              background="#e11d48"
+              fuseColor="#facc15"
+              size="sm"
+              radius={12}
+              undoWindow={3500}
+              fuse="outline"
+              commitOn="fuseEnd"
               disabled={deletingExam}
-              onClick={confirmDeleteExam}
-              className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-xs disabled:opacity-50"
-            >
-              {deletingExam ? (
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Trash2 className="w-3.5 h-3.5" />
-              )}
-              تأكيد الحذف النهائي
-            </button>
+              onCommit={confirmDeleteExam}
+            />
           </div>
         </div>
       </Dialog>
@@ -1511,7 +1562,17 @@ export default function DoctorGradesPage() {
     <Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-900">
-          <RefreshCw className="w-8 h-8 animate-spin text-[#14352c]" />
+          <LatticeLoader
+            status="working"
+            label="تحميل سجل الدرجات..."
+            pattern="orbit"
+            grid={3}
+            cellSize={5}
+            gap={2}
+            fontSize={14}
+            showTimer={false}
+            color="#14352c"
+          />
         </div>
       }
     >

@@ -7,6 +7,7 @@ import { apiFetch } from "@/lib/api";
 import { getStoredUser, User } from "@/lib/auth";
 import Navbar from '@/components/Navbar';
 import Dialog from "@/components/Dialog";
+import LatticeLoader from "@/components/ui/lattice-loader";
 import {
   Users,
   BookOpen,
@@ -101,7 +102,17 @@ export default function DoctorDashboardPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-900">
-        <RefreshCw className="w-8 h-8 animate-spin text-[#14352c]" />
+        <LatticeLoader
+          status="working"
+          label="تحميل لوحة التدريسي..."
+          pattern="orbit"
+          grid={3}
+          cellSize={5}
+          gap={2}
+          fontSize={14}
+          showTimer={false}
+          color="#14352c"
+        />
       </div>
     );
   }
@@ -335,7 +346,17 @@ export default function DoctorDashboardPage() {
                 className="w-full py-3 rounded-xl bg-[#14352c] hover:bg-[#1b4a3d] text-white font-bold text-xs transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
               >
                 {startingSession ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <LatticeLoader
+                    status="working"
+                    label=""
+                    pattern="orbit"
+                    grid={3}
+                    cellSize={3}
+                    gap={1.5}
+                    fontSize={11}
+                    showTimer={false}
+                    color="#ffffff"
+                  />
                 ) : (
                   <Play className="w-4 h-4" />
                 )}

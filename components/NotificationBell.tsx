@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { formatAcademicDate, formatAcademicTime } from "@/lib/date";
+import FuseButton from "@/components/ui/fuse-button";
+import BellToggle from "@/components/ui/bell-toggle";
 
 export interface NotificationItem {
   _id: string;
@@ -137,88 +139,109 @@ export default function NotificationBell({ theme = "light" }: NotificationBellPr
 
   return (
     <div className="relative" ref={dropdownRef}>
-      {/* Trigger Button */}
-      <button
-        type="button"
-        onClick={() => {
-          setIsOpen((prev) => !prev);
-          if (!isOpen) loadNotifications();
-        }}
-        aria-label="الإشعارات"
-        className={`relative size-10 rounded-xl flex items-center justify-center transition-all ${
+      {/* Animated BellToggle Trigger */}
+      <BellToggle
+        pressed={isOpen}
+        count={unreadCount}
+        badge={true}
+        badgeColor="#ef4444"
+        badgeTextColor="#ffffff"
+        waves={true}
+        clapper={false}
+        size="sm"
+        radius={9999}
+        offLabel=""
+        onLabel=""
+        label="الإشعارات الأكاديمية"
+        color={isLight ? "#334155" : "#e2e8f0"}
+        background={
           isLight
-            ? "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-slate-900"
-            : "border border-white/[0.08] bg-white/[0.03] text-slate-300 hover:bg-emerald-400/10 hover:text-emerald-300 hover:border-emerald-400/30"
-        } ${isOpen ? (isLight ? "ring-2 ring-[#14352c]/20 border-[#14352c]" : "ring-2 ring-emerald-400/20") : ""}`}
-      >
-        <Bell className="size-4.5" />
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-emerald-600 text-[10px] font-bold text-white shadow-xs">
-            {unreadCount > 9 ? "9+" : unreadCount}
-          </span>
-        )}
-      </button>
+            ? "#ffffff"
+            : "rgba(255, 255, 255, 0.08)"
+        }
+        onColor="#0f172a"
+        onBackground="#ffffff"
+        onChange={(pressed) => {
+          setIsOpen(pressed);
+          if (pressed) loadNotifications();
+        }}
+      />
 
-      {/* Popover Dropdown */}
+      {/* Popover Dropdown (Neumorphic Soft UI) */}
       {isOpen && (
         <div
           dir="rtl"
-          className="absolute left-0 sm:left-auto sm:right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-white border border-slate-200 shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+          className="absolute left-0 sm:left-auto sm:right-0 mt-3 w-80 sm:w-96 rounded-3xl bg-white/95 backdrop-blur-xl border border-white/80 shadow-[0_22px_50px_-10px_rgba(0,0,0,0.18),0_4px_14px_rgba(0,0,0,0.05),inset_0_1px_1.5px_rgba(255,255,255,0.95)] z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
         >
           {/* Header */}
-          <div className="p-3.5 bg-slate-50/90 border-b border-slate-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="size-6 rounded-lg bg-[#14352c] text-white flex items-center justify-center">
-                <Bell className="size-3.5 text-emerald-300" />
+          <div className="p-3.5 sm:p-4 bg-gradient-to-b from-slate-50/95 to-slate-100/70 border-b border-slate-200/70 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="size-8 rounded-xl bg-gradient-to-b from-[#1b463a] to-[#102d25] text-white flex items-center justify-center shrink-0 border border-emerald-500/25 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25),0_2px_5px_rgba(20,53,44,0.25)]">
+                <Bell className="size-4 text-emerald-300" />
               </div>
-              <h4 className="text-xs font-bold text-slate-900">
-                الإشعارات الأكاديمية
-              </h4>
+              <div>
+                <h4 className="text-xs font-bold text-slate-900 leading-tight">
+                  الإشعارات الأكاديمية
+                </h4>
+                <p className="text-[10px] text-slate-500 font-medium">
+                  تحديثات المقررات والامتحانات
+                </p>
+              </div>
               {unreadCount > 0 && (
-                <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full">
+                <span className="text-[10px] font-bold bg-white text-emerald-800 border border-emerald-200/80 px-2 py-0.5 rounded-full shadow-[inset_0_1px_1px_rgba(255,255,255,0.9),0_1px_3px_rgba(0,0,0,0.04)]">
                   {unreadCount} جديد
                 </span>
               )}
             </div>
 
             {unreadCount > 0 && (
-              <button
-                type="button"
-                onClick={handleMarkAllAsRead}
-                className="text-[11px] font-bold text-[#14352c] hover:underline flex items-center gap-1 transition"
-              >
-                <CheckCheck className="size-3.5" />
-                تحديد الكل كمقروء
-              </button>
+              <FuseButton
+                label="تحديد كمقروء"
+                undoLabel="تراجع"
+                doneLabel="تم"
+                icon={<CheckCheck className="size-3.5" />}
+                color="#14352c"
+                background="#ffffff"
+                fuseColor="#10b981"
+                size="sm"
+                radius={12}
+                undoWindow={3000}
+                fuse="bottom"
+                fuseThickness={2}
+                commitOn="fuseEnd"
+                onCommit={handleMarkAllAsRead}
+                style={{ height: '28px', fontSize: '11px', padding: '0 10px', fontWeight: 600, border: '1px solid rgba(203, 213, 225, 0.8)', boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.9), 0 1px 3px rgba(0,0,0,0.04)' }}
+              />
             )}
           </div>
 
           {/* List */}
-          <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+          <div className="max-h-84 overflow-y-auto p-2 sm:p-2.5 space-y-1.5 divide-y-0">
             {notifications.length === 0 ? (
-              <div className="py-10 px-4 text-center">
-                <Bell className="size-8 mx-auto text-slate-300 mb-2" />
-                <p className="text-xs font-medium text-slate-500">
-                  لا توجد إشعارات جديدة حالياً.
-                </p>
+              <div className="py-12 px-4 text-center">
+                <div className="size-12 rounded-2xl bg-slate-100 border border-slate-200/80 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04),0_2px_4px_rgba(255,255,255,0.8)] mx-auto flex items-center justify-center text-slate-400 mb-2.5">
+                  <Bell className="size-5" />
+                </div>
+                <p className="text-xs font-bold text-slate-700">لا توجد إشعارات جديدة</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">ستظهر التنبيهات فور اعتمادها من الكلية</p>
               </div>
             ) : (
               notifications.map((item) => (
                 <div
                   key={item._id}
                   onClick={() => handleMarkAsRead(item._id, item.link)}
-                  className={`p-3 text-right cursor-pointer transition flex items-start gap-3 ${
+                  className={`p-3 rounded-2xl text-right cursor-pointer transition-all duration-200 flex items-start gap-3 border ${
                     item.isRead
-                      ? "bg-white hover:bg-slate-50 text-slate-700"
-                      : "bg-emerald-50/40 hover:bg-emerald-50/70 text-slate-900"
+                      ? "bg-white/80 hover:bg-slate-50/90 text-slate-700 border-transparent hover:border-slate-200/60 shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
+                      : "bg-gradient-to-l from-emerald-50/70 via-white to-white text-slate-950 font-medium border-emerald-200/70 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9),0_2px_6px_rgba(16,185,129,0.06)]"
                   }`}
                 >
                   {/* Type Icon Badge */}
                   <div
-                    className={`size-8 rounded-xl shrink-0 flex items-center justify-center border ${
+                    className={`size-9 rounded-2xl shrink-0 flex items-center justify-center border transition-all ${
                       item.isRead
-                        ? "bg-slate-100 border-slate-200"
-                        : "bg-white border-emerald-200 shadow-xs"
+                        ? "bg-slate-50 border-slate-200/80 text-slate-500 shadow-[inset_0_1px_1px_rgba(255,255,255,0.9),0_1px_2px_rgba(0,0,0,0.03)]"
+                        : "bg-white border-emerald-200/90 text-emerald-800 shadow-[inset_0_1.5px_2px_rgba(255,255,255,0.95),0_2px_5px_rgba(0,0,0,0.04)]"
                     }`}
                   >
                     {getIcon(item.type)}
@@ -226,8 +249,8 @@ export default function NotificationBell({ theme = "light" }: NotificationBellPr
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-1 mb-0.5">
-                      <p className="text-xs font-bold truncate text-slate-900">
+                    <div className="flex items-center justify-between gap-1.5 mb-1">
+                      <p className={`text-xs truncate ${item.isRead ? "font-semibold text-slate-800" : "font-bold text-slate-950"}`}>
                         {item.title}
                       </p>
                       <span className="text-[10px] text-slate-400 shrink-0 font-mono" dir="ltr">
@@ -240,15 +263,15 @@ export default function NotificationBell({ theme = "light" }: NotificationBellPr
                   </div>
 
                   {/* Delete or Unread Indicator */}
-                  <div className="shrink-0 flex items-center gap-1 self-center">
+                  <div className="shrink-0 flex items-center gap-1.5 self-center">
                     {!item.isRead && (
-                      <span className="size-2 rounded-full bg-emerald-600" />
+                      <span className="size-2 rounded-full bg-emerald-600 shadow-[0_0_6px_rgba(5,150,105,0.5)]" />
                     )}
                     <button
                       type="button"
                       onClick={(e) => handleDelete(e, item._id)}
                       title="حذف الإشعار"
-                      className="opacity-0 hover:opacity-100 group-hover:opacity-100 p-1 text-slate-400 hover:text-rose-600 rounded transition"
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
                     >
                       <Trash2 className="size-3.5" />
                     </button>

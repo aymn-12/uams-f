@@ -9,6 +9,9 @@ import { getStoredUser, User } from "@/lib/auth";
 import Navbar from '@/components/Navbar';
 import Dialog from "@/components/Dialog";
 import CustomSelect from "@/components/CustomSelect";
+import LatticeLoader from "@/components/ui/lattice-loader";
+import FuseButton from "@/components/ui/fuse-button";
+import HoldButton from "@/components/ui/hold-button";
 import {
   QrCode,
   Users,
@@ -307,7 +310,17 @@ export default function DoctorAttendancePage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-900">
-        <RefreshCw className="w-8 h-8 animate-spin text-[#14352c]" />
+        <LatticeLoader
+          status="working"
+          label="تحميل نظام الحضور الذكي..."
+          pattern="orbit"
+          grid={3}
+          cellSize={5}
+          gap={2}
+          fontSize={14}
+          showTimer={false}
+          color="#14352c"
+        />
       </div>
     );
   }
@@ -348,23 +361,40 @@ export default function DoctorAttendancePage() {
             )}
 
             {!activeSession ? (
-              <button
-                onClick={handleStartSession}
+              <HoldButton
+                size="sm"
+                radius={12}
+                backgroundColor="#14352c"
+                fillColor="#10b981"
+                textColor="#ffffff"
+                fillTextColor="#ffffff"
+                holdTime={1500}
+                fillDirection="up"
+                doneLabel="جارٍ إطلاق الجلسة..."
+                icon={<Play className="w-3.5 h-3.5 text-emerald-300" />}
+                doneIcon={<CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />}
                 disabled={creating}
-                className="px-5 py-2.5 rounded-xl bg-[#14352c] hover:bg-[#1b4a3d] text-white text-xs font-bold transition flex items-center gap-2 shadow-sm disabled:opacity-50"
+                onHold={handleStartSession}
               >
-                {creating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                بدء جلسة الحضور
-              </button>
+                اضغط مطولاً لبدء الجلسة
+              </HoldButton>
             ) : (
-              <button
-                onClick={handleCloseSession}
+              <FuseButton
+                label="إنهاء وإغلاق الجلسة"
+                undoLabel="تراجع عن الإغلاق"
+                doneLabel="تم إغلاق الجلسة"
+                icon={<Square className="w-3.5 h-3.5" />}
+                color="#ffffff"
+                background="#dc2626"
+                fuseColor="#facc15"
+                size="sm"
+                radius={12}
+                undoWindow={4000}
+                fuse="outline"
+                commitOn="fuseEnd"
                 disabled={closing}
-                className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition flex items-center gap-2 shadow-sm disabled:opacity-50"
-              >
-                {closing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Square className="w-4 h-4" />}
-                إنهاء وإغلاق الجلسة
-              </button>
+                onCommit={handleCloseSession}
+              />
             )}
           </div>
         </div>

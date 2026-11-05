@@ -1,6 +1,14 @@
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
+@theme {
+  --color-primary: #14352c;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f1f5f9;
+  --color-border: #e2e8f0;
+  --color-ring: #14352c;
+}
+
 :root {
   --background: #f8fafc;
   --foreground: #0f172a;

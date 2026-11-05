@@ -6,6 +6,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { getStoredUser, User } from "@/lib/auth";
 import Navbar from "@/components/Navbar";
+import LatticeLoader from "@/components/ui/lattice-loader";
 import {
   CalendarDays,
   Printer,
@@ -175,7 +176,17 @@ export default function DoctorSchedulePage() {
   if (loading && slots.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-900" dir="rtl">
-        <RefreshCw className="w-8 h-8 animate-spin text-[#14352c]" />
+        <LatticeLoader
+          status="working"
+          label="تحميل الجدول الدراسي..."
+          pattern="orbit"
+          grid={3}
+          cellSize={5}
+          gap={2}
+          fontSize={14}
+          showTimer={false}
+          color="#14352c"
+        />
       </div>
     );
   }
