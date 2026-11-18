@@ -9,6 +9,7 @@ import { smartCache } from "@/lib/cache";
 import Navbar from "@/components/Navbar";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import Dialog from "@/components/Dialog";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import CustomSelect, { SelectOption } from "@/components/CustomSelect";
 import {
   CalendarDays,
@@ -246,6 +247,7 @@ export default function AdminInteractiveSchedulePage() {
 
   // Delete Confirmation State
   const [deleteConfirmSlot, setDeleteConfirmSlot] = useState<ScheduleSlot | null>(null);
+  const [periodToDelete, setPeriodToDelete] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   // Auto-Enroll Progress State
@@ -1292,7 +1294,7 @@ export default function AdminInteractiveSchedulePage() {
                             {/* Delete Period (Column) */}
                             <button
                               type="button"
-                              onClick={() => handleDeletePeriod(period.periodNumber)}
+                              onClick={() => setPeriodToDelete(period.periodNumber)}
                               className="p-1 rounded hover:bg-rose-100 text-rose-600 transition"
                               title="حذف هذا العامود بالكامل"
                             >
@@ -1907,6 +1909,20 @@ export default function AdminInteractiveSchedulePage() {
             </div>
           </div>
         </Dialog>
+
+        {/* Delete Period Column Confirmation */}
+        <ConfirmDialog
+          isOpen={periodToDelete !== null}
+          onClose={() => setPeriodToDelete(null)}
+          onConfirm={async () => {
+            if (periodToDelete !== null) {
+              await handleDeletePeriod(periodToDelete);
+              setPeriodToDelete(null);
+            }
+          }}
+          title="تأكيد حذف الفترة الزمنية"
+          message={`هل أنت متأكد من رغبتك في حذف الفترة رقم ${periodToDelete} بالكامل؟ سيتم حذف جميع المحاضرات المجدولة فيها وإعادة ترتيب الأعمدة لجميع الحسابات.`}
+        />
       </main>
     </div>
   );

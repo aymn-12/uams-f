@@ -9,6 +9,7 @@ import { smartCache } from "@/lib/cache";
 import { formatAcademicDate } from "@/lib/date";
 import Navbar from '@/components/Navbar';
 import Dialog from "@/components/Dialog";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import CustomSelect, { SelectOption } from "@/components/CustomSelect";
 import {
   Megaphone,
@@ -39,6 +40,9 @@ export default function AdminAnnouncementsPage() {
   const [targetAudience, setTargetAudience] = useState("ALL");
   const [isPinned, setIsPinned] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Delete Confirmation
+  const [announcementToDelete, setAnnouncementToDelete] = useState<string | null>(null);
 
   // Status Dialog
   const [dialog, setDialog] = useState<{
@@ -130,12 +134,15 @@ export default function AdminAnnouncementsPage() {
     }
   };
 
-  const handleDeleteAnnouncement = async (id: string) => {
+  const handleDeleteAnnouncement = async () => {
+    if (!announcementToDelete) return;
     try {
-      await apiFetch(`/announcements/${id}`, { method: "DELETE" });
+      await apiFetch(`/announcements/${announcementToDelete}`, { method: "DELETE" });
+      setAnnouncementToDelete(null);
       smartCache.invalidate("/announcements*");
       loadAnnouncements();
     } catch (err: any) {
+      setAnnouncementToDelete(null);
       setDialog({
         isOpen: true,
         title: "خطأ في الحذف",
@@ -231,7 +238,7 @@ export default function AdminAnnouncementsPage() {
                   </div>
 
                   <button
-                    onClick={() => handleDeleteAnnouncement(ann._id)}
+                    onClick={() => setAnnouncementToDelete(ann._id)}
                     className="p-2 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 transition"
                     title="حذف الإعلان"
                   >
@@ -341,6 +348,15 @@ export default function AdminAnnouncementsPage() {
           </button>
         </div>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={!!announcementToDelete}
+        onClose={() => setAnnouncementToDelete(null)}
+        onConfirm={handleDeleteAnnouncement}
+        title="تأكيد حذف الإعلان"
+        message="هل أنت متأكد من رغبتك في حذف هذا الإعلان؟ سيتم إزالته من لوحة إعلانات الطلبة والأساتذة نهائياً."
+      />
     </div>
   );
 }

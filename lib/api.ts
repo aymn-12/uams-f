@@ -19,9 +19,13 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestOption
     !endpoint.includes('/live') &&
     options.cache !== 'no-store';
 
+  // Cache entries are scoped per logged-in user so switching accounts can
+  // never serve one user's data to another (privacy-critical for Q&A streams).
+  const cacheKey = getScopedCacheKey(endpoint);
+
   // 1. Check cache for GET requests
   if (isCacheable) {
-    const cached = smartCache.get<T>(endpoint);
+    const cached = smartCache.get<T>(cacheKey);
     if (cached) {
       if (!cached.isStale) {
         return cached.data;
@@ -34,7 +38,7 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestOption
     }
 
     // 2. Request deduplication for simultaneous calls
-    const inFlight = smartCache.getInFlight<T>(endpoint);
+    const inFlight = smartCache.getInFlight<T>(cacheKey);
     if (inFlight) {
       return inFlight;
     }
@@ -44,15 +48,26 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestOption
   const fetchPromise = executeNetworkFetch<T>(endpoint, options, isCacheable);
 
   if (isCacheable) {
-    smartCache.setInFlight(endpoint, fetchPromise);
+    smartCache.setInFlight(cacheKey, fetchPromise);
   }
 
   try {
     return await fetchPromise;
   } finally {
     if (isCacheable) {
-      smartCache.removeInFlight(endpoint);
+      smartCache.removeInFlight(cacheKey);
     }
+  }
+}
+
+function getScopedCacheKey(endpoint: string): string {
+  if (typeof window === 'undefined') return endpoint;
+  try {
+    const raw = localStorage.getItem('uams_user');
+    const uid = raw ? JSON.parse(raw)?._id || 'anon' : 'anon';
+    return `u:${uid}|${endpoint}`;
+  } catch {
+    return `u:anon|${endpoint}`;
   }
 }
 
@@ -100,9 +115,9 @@ async function executeNetworkFetch<T = any>(
 
   const method = (options.method || 'GET').toUpperCase();
 
-  // On successful GET, store in cache
+  // On successful GET, store in cache (scoped per user — see getScopedCacheKey)
   if (isCacheable) {
-    smartCache.set(endpoint, data, ttlMs);
+    smartCache.set(getScopedCacheKey(endpoint), data, ttlMs);
   } else if (method !== 'GET') {
     // On mutations (POST, PUT, DELETE, PATCH), invalidate related caches
     handleAutoInvalidation(endpoint);

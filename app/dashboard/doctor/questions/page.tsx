@@ -9,6 +9,7 @@ import { formatAcademicDate } from "@/lib/date";
 import { getStoredUser, User } from "@/lib/auth";
 import Navbar from '@/components/Navbar';
 import Dialog from "@/components/Dialog";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import CustomSelect from "@/components/CustomSelect";
 import LatticeLoader from "@/components/ui/lattice-loader";
 import {
@@ -21,9 +22,14 @@ import {
   MessageCircle,
   Clock,
   GraduationCap,
+  Globe,
+  Lock,
+  EyeOff,
 } from "lucide-react";
 
 const mono = { className: "font-mono" };
+
+type FilterTab = "all" | "public" | "private" | "pending";
 
 export default function DoctorQuestionsPage() {
   const router = useRouter();
@@ -34,10 +40,21 @@ export default function DoctorQuestionsPage() {
   const [questions, setQuestions] = useState<any[]>([]);
   const [fetching, setFetching] = useState(false);
 
+  // Stream Filter Tabs
+  const [activeTab, setActiveTab] = useState<FilterTab>("all");
+
   // Answer Dialog
   const [activeQuestion, setActiveQuestion] = useState<any | null>(null);
   const [answerText, setAnswerText] = useState("");
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
+
+  // Publish-to-Class Dialog (privacy toggle with optional anonymization)
+  const [publishTarget, setPublishTarget] = useState<any | null>(null);
+  const [anonymize, setAnonymize] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+
+  // Delete Confirmation
+  const [questionToDelete, setQuestionToDelete] = useState<string | null>(null);
 
   // Status Dialog
   const [dialog, setDialog] = useState<{
@@ -79,7 +96,9 @@ export default function DoctorQuestionsPage() {
     if (!secId) return;
     setFetching(true);
     try {
-      const res = await apiFetch(`/questions/section/${secId}`);
+      // Always fetch from the server: the Q&A stream is interactive and
+      // privacy-scoped, so a cached snapshot must never be rendered.
+      const res = await apiFetch(`/questions/section/${secId}`, { skipCache: true });
       setQuestions(res.data || []);
     } catch {
       setQuestions([]);
@@ -128,10 +147,12 @@ export default function DoctorQuestionsPage() {
     }
   };
 
-  const handleDeleteQuestion = async (id: string) => {
+  const handleDeleteQuestion = async () => {
+    if (!questionToDelete) return;
     try {
-      await apiFetch(`/questions/${id}`, { method: "DELETE" });
-      setQuestions((prev) => prev.filter((q) => q._id !== id));
+      await apiFetch(`/questions/${questionToDelete}`, { method: "DELETE" });
+      setQuestions((prev) => prev.filter((q) => q._id !== questionToDelete));
+      setQuestionToDelete(null);
       setDialog({
         isOpen: true,
         title: "تم الحذف",
@@ -139,6 +160,7 @@ export default function DoctorQuestionsPage() {
         type: "success",
       });
     } catch {
+      setQuestionToDelete(null);
       setDialog({
         isOpen: true,
         title: "خطأ في الحذف",
@@ -147,6 +169,65 @@ export default function DoctorQuestionsPage() {
       });
     }
   };
+
+  const openPublishDialog = (q: any) => {
+    setPublishTarget(q);
+    setAnonymize(false);
+  };
+
+  const handlePublishToClass = async () => {
+    if (!publishTarget) return;
+    setPublishing(true);
+    try {
+      await apiFetch(`/questions/${publishTarget._id}/privacy`, {
+        method: "PUT",
+        body: JSON.stringify({ isPrivate: false, anonymize }),
+      });
+
+      setPublishTarget(null);
+      setDialog({
+        isOpen: true,
+        title: "تم النشر على حائط الشعبة",
+        message: anonymize
+          ? "تم نشر الاستشارة على حائط الشعبة مع إخفاء اسم الطالب، وستصل إشعاراً له بإتمام النشر."
+          : "تم نشر الاستشارة على حائط الشعبة ليتسنى لجميع الطلبة الاطلاع على المحتوى العلمي.",
+        type: "success",
+      });
+      loadQuestions(selectedSection);
+    } catch (err: any) {
+      setDialog({
+        isOpen: true,
+        title: "تعذر النشر",
+        message: err.message || "حدث خطأ أثناء نشر الاستشارة على حائط الشعبة.",
+        type: "danger",
+      });
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const handleTabChange = (t: FilterTab) => {
+    setActiveTab(t);
+    smartCache.setWorkspace("doctor_questions_tab", t);
+  };
+
+  // Tab counts
+  const metrics = useMemo(() => {
+    const total = questions.length;
+    const publicCount = questions.filter((q) => !q.isPrivate).length;
+    const privateCount = questions.filter((q) => q.isPrivate).length;
+    const pending = questions.filter((q) => !q.isAnswered).length;
+    return { total, publicCount, privateCount, pending };
+  }, [questions]);
+
+  const visibleQuestions = useMemo(() => {
+    return questions.filter((q) => {
+      if (activeTab === "public" && q.isPrivate) return false;
+      if (activeTab === "private" && !q.isPrivate) return false;
+      if (activeTab === "pending" && q.isAnswered) return false;
+      return true;
+    });
+  }, [questions, activeTab]);
 
   const sectionOptions = useMemo(() => {
     return sections.map((sec: any) => ({
@@ -215,21 +296,76 @@ export default function DoctorQuestionsPage() {
           </div>
         </div>
 
+        {/* Filter Tabs */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => handleTabChange("all")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                activeTab === "all"
+                  ? "bg-[#14352c] text-white shadow-sm"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"
+              }`}
+            >
+              الكل ({metrics.total})
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTabChange("public")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                activeTab === "public"
+                  ? "bg-[#14352c] text-white shadow-sm"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5" />
+              عامة ({metrics.publicCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTabChange("private")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                activeTab === "private"
+                  ? "bg-[#14352c] text-white shadow-sm"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"
+              }`}
+            >
+              <Lock className="w-3.5 h-3.5" />
+              استشارات خاصة ({metrics.privateCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTabChange("pending")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                activeTab === "pending"
+                  ? "bg-[#14352c] text-white shadow-sm"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5" />
+              بانتظار الإجابة ({metrics.pending})
+            </button>
+          </div>
+        </div>
+
         {/* Questions Stream */}
         {fetching ? (
           <div className="py-20 text-center bg-white rounded-2xl border border-slate-200 space-y-2">
             <RefreshCw className="w-8 h-8 animate-spin mx-auto text-[#14352c]" />
             <p className="text-xs text-slate-500 font-medium">جارٍ جلب استفسارات الشعبة...</p>
           </div>
-        ) : questions.length === 0 ? (
+        ) : visibleQuestions.length === 0 ? (
           <div className="py-20 text-center bg-white rounded-2xl border border-dashed border-slate-300 space-y-3 p-6">
             <HelpCircle className="w-12 h-12 text-slate-400 mx-auto" />
-            <h3 className="text-base font-bold text-slate-800">لا توجد أسئلة مطروحة في هذه الشعبة</h3>
+            <h3 className="text-base font-bold text-slate-800">
+              {activeTab === "private" ? "لا توجد استشارات خاصة في هذه الشعبة" : "لا توجد أسئلة مطروحة في هذه الشعبة"}
+            </h3>
             <p className="text-xs text-slate-500">ستظهر استفسارات طلبتك هنا فور طرحها في حائط المقرر.</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {questions.map((q: any) => {
+            {visibleQuestions.map((q: any) => {
               const studentName = q.student?.name || "طالب جامعي";
               const studentInitial = studentName.trim().charAt(0);
 
@@ -256,6 +392,22 @@ export default function DoctorQuestionsPage() {
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-bold text-slate-900">{studentName}</span>
+                          {q.isPrivate ? (
+                            <span className="text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1.5 bg-[#14352c] text-white border border-[#14352c] shadow-sm">
+                              <Lock className="w-3 h-3" />
+                              استشارة خاصة
+                            </span>
+                          ) : (
+                            <span className="text-xs font-medium px-3 py-1 rounded-full flex items-center gap-1.5 bg-slate-50 text-slate-500 border border-slate-200/80">
+                              <Globe className="w-3 h-3" />
+                              عام
+                            </span>
+                          )}
+                          {q.isAnonymized && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200">
+                              منشور مجهولاً
+                            </span>
+                          )}
                           <span
                             className={`text-xs font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
                               q.isAnswered
@@ -283,6 +435,16 @@ export default function DoctorQuestionsPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
+                      {q.isPrivate && (
+                        <button
+                          onClick={() => openPublishDialog(q)}
+                          className="px-3.5 py-2 rounded-xl bg-white border border-slate-200/80 hover:border-[#14352c]/40 hover:text-[#14352c] text-slate-600 text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+                          title="نشر الاستشارة على حائط الشعبة للاستفادة العلمية العامة"
+                        >
+                          <Globe className="w-3.5 h-3.5" />
+                          نشر للجميع
+                        </button>
+                      )}
                       <button
                         onClick={() => openAnswerDialog(q)}
                         className="px-4 py-2 rounded-xl bg-[#14352c] hover:bg-[#1b4a3d] text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
@@ -292,7 +454,7 @@ export default function DoctorQuestionsPage() {
                       </button>
 
                       <button
-                        onClick={() => handleDeleteQuestion(q._id)}
+                        onClick={() => setQuestionToDelete(q._id)}
                         className="p-2 text-slate-400 hover:text-red-600 rounded-xl hover:bg-red-50 transition"
                         title="حذف السؤال"
                       >
@@ -348,6 +510,12 @@ export default function DoctorQuestionsPage() {
                 </span>
               )}
             </div>
+            {activeQuestion?.isPrivate && (
+              <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#14352c] bg-[#14352c]/5 border border-[#14352c]/15 rounded-lg px-2.5 py-1.5">
+                <Lock className="w-3.5 h-3.5" />
+                استشارة خاصة: لن يظهر هذا السؤال وردّه إلا للطالب صاحب الاستفسار.
+              </div>
+            )}
             <p className="text-slate-800 font-medium leading-relaxed whitespace-pre-line text-sm pt-1">
               {activeQuestion?.content || activeQuestion?.questionText}
             </p>
@@ -385,6 +553,66 @@ export default function DoctorQuestionsPage() {
             </button>
           </div>
         </form>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={!!questionToDelete}
+        onClose={() => setQuestionToDelete(null)}
+        onConfirm={handleDeleteQuestion}
+        title="تأكيد حذف السؤال"
+        message="هل أنت متأكد من رغبتك في حذف هذا السؤال من حائط المقرر؟ سيتم إزالته نهائياً ولا يمكن التراجع عن هذا الإجراء."
+      />
+
+      {/* Publish-to-Class Dialog (Privacy Toggle) */}
+      <Dialog
+        isOpen={!!publishTarget}
+        onClose={() => setPublishTarget(null)}
+        title="نشر الاستشارة على حائط الشعبة"
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-slate-600 leading-relaxed">
+            بالنشر، يتحول هذا الاستفسار من خاص إلى عام فيتاح لجميع طلبة الشعبة الاطلاع عليه والاستفادة من رده العلمي.
+          </p>
+
+          <label className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 cursor-pointer hover:border-slate-300 transition">
+            <input
+              type="checkbox"
+              checked={anonymize}
+              onChange={(e) => setAnonymize(e.target.checked)}
+              className="mt-0.5 w-4 h-4 accent-[#14352c] shrink-0"
+            />
+            <span className="space-y-0.5">
+              <span className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <EyeOff className="w-3.5 h-3.5 text-[#14352c]" />
+                نشر مجهول (إخفاء اسم الطالب)
+              </span>
+              <span className="block text-[11px] text-slate-500">
+                يُعرض السؤال وردّه على الطلبة دون إظهار هوية صاحب الاستفسار.
+              </span>
+            </span>
+          </label>
+
+          <div className="pt-3 flex justify-end gap-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setPublishTarget(null)}
+              className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 transition"
+            >
+              إلغاء
+            </button>
+            <button
+              type="button"
+              onClick={handlePublishToClass}
+              disabled={publishing}
+              className="px-5 py-2 rounded-xl bg-[#14352c] hover:bg-[#1b4a3d] text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+            >
+              {publishing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Globe className="w-3.5 h-3.5" />}
+              تأكيد النشر
+            </button>
+          </div>
+        </div>
       </Dialog>
 
       {/* Status Feedback Dialog */}

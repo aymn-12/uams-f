@@ -26,11 +26,13 @@ import {
   ChevronDown,
   MessagesSquare,
   UserCheck,
+  Globe,
+  Lock,
 } from "lucide-react";
 
 const mono = { className: "font-mono" };
 
-type FilterTab = "all" | "answered" | "pending" | "mine";
+type FilterTab = "all" | "public" | "myPrivate";
 
 interface QuestionItem {
   _id: string;
@@ -41,6 +43,9 @@ interface QuestionItem {
   answerText?: string;
   answer?: string;
   isAnswered: boolean;
+  isPrivate?: boolean;
+  isAnonymized?: boolean;
+  isAuthorHidden?: boolean;
   answeredAt?: string;
   createdAt: string;
   student?: {
@@ -76,6 +81,7 @@ export default function StudentQuestionsPage() {
   const [modalSectionId, setModalSectionId] = useState("");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [isPrivate, setIsPrivate] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // Delete Confirm Modal
@@ -99,7 +105,9 @@ export default function StudentQuestionsPage() {
     if (!secId) return;
     setFetchingQuestions(true);
     try {
-      const res = await apiFetch(`/questions/section/${secId}`);
+      // Always fetch from the server: the Q&A stream is interactive and
+      // privacy-scoped, so a cached snapshot must never be rendered.
+      const res = await apiFetch(`/questions/section/${secId}`, { skipCache: true });
       setQuestions(res.data || []);
     } catch {
       setQuestions([]);
@@ -169,20 +177,22 @@ export default function StudentQuestionsPage() {
         body: JSON.stringify({
           sectionId: targetSection,
           questionText: fullText,
-          title: title.trim(),
-          content: content.trim(),
+          isPrivate,
         }),
       });
 
       setAskModal(false);
       setTitle("");
       setContent("");
+      setIsPrivate(false);
       smartCache.setWorkspace("draft_student_question_title", "");
       smartCache.setWorkspace("draft_student_question_content", "");
       setDialog({
         isOpen: true,
-        title: "تم نشر الاستفسار بنجاح",
-        message: "تم إرسال استفسارك إلى حائط المادة وإشعار أستاذ المقرر مباشرة.",
+        title: isPrivate ? "تم إرسال الاستشارة الخاصة" : "تم نشر الاستفسار بنجاح",
+        message: isPrivate
+          ? "أُرسل استفسارك سراً إلى أستاذ المقرر مباشرة، ولن يطّلع عليه أي طالب آخر."
+          : "تم إرسال استفسارك إلى حائط المادة وإشعار أستاذ المقرر مباشرة.",
         type: "success",
       });
 
@@ -234,21 +244,19 @@ export default function StudentQuestionsPage() {
     const total = questions.length;
     const answered = questions.filter((q) => q.isAnswered).length;
     const pending = total - answered;
+    const publicCount = questions.filter((q) => !q.isPrivate).length;
+    const myPrivate = questions.filter((q) => q.isPrivate).length;
     const mine = questions.filter(
       (q) => q.student?._id === user?._id || (q.student as any) === user?._id
     ).length;
-    return { total, answered, pending, mine };
+    return { total, answered, pending, mine, publicCount, myPrivate };
   }, [questions, user]);
 
   // Filtered Questions list
   const filteredQuestions = useMemo(() => {
     return questions.filter((q) => {
-      const isMine =
-        q.student?._id === user?._id || (q.student as any) === user?._id;
-
-      if (activeTab === "answered" && !q.isAnswered) return false;
-      if (activeTab === "pending" && q.isAnswered) return false;
-      if (activeTab === "mine" && !isMine) return false;
+      if (activeTab === "public" && q.isPrivate) return false;
+      if (activeTab === "myPrivate" && !q.isPrivate) return false;
 
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
@@ -448,36 +456,27 @@ export default function StudentQuestionsPage() {
               </button>
               <button
                 type="button"
-                onClick={() => handleTabChange("answered")}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                  activeTab === "answered"
+                onClick={() => handleTabChange("public")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                  activeTab === "public"
                     ? "bg-[#14352c] text-white shadow-sm"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"
                 }`}
               >
-                تم الرد ({metrics.answered})
+                <Globe className="w-3.5 h-3.5" />
+                عامة ({metrics.publicCount})
               </button>
               <button
                 type="button"
-                onClick={() => handleTabChange("pending")}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                  activeTab === "pending"
+                onClick={() => handleTabChange("myPrivate")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                  activeTab === "myPrivate"
                     ? "bg-[#14352c] text-white shadow-sm"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"
                 }`}
               >
-                بانتظار الأستاذ ({metrics.pending})
-              </button>
-              <button
-                type="button"
-                onClick={() => handleTabChange("mine")}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                  activeTab === "mine"
-                    ? "bg-[#14352c] text-white shadow-sm"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"
-                }`}
-              >
-                استفساراتي ({metrics.mine})
+                <Lock className="w-3.5 h-3.5" />
+                خاصة بي ({metrics.myPrivate})
               </button>
             </div>
 
@@ -599,6 +598,17 @@ export default function StudentQuestionsPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
+                      {q.isPrivate ? (
+                        <span className="text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1.5 bg-[#14352c] text-white border border-[#14352c] shadow-sm">
+                          <Lock className="w-3.5 h-3.5" />
+                          استشارة خاصة
+                        </span>
+                      ) : (
+                        <span className="text-xs font-medium px-3 py-1 rounded-full flex items-center gap-1.5 bg-slate-50 text-slate-500 border border-slate-200/80">
+                          <Globe className="w-3.5 h-3.5" />
+                          عام
+                        </span>
+                      )}
                       <span
                         className={`text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1.5 ${
                           q.isAnswered
@@ -700,6 +710,43 @@ export default function StudentQuestionsPage() {
 
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              نطاق الخصوصية:
+            </label>
+            <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-full border border-slate-200/80">
+              <button
+                type="button"
+                onClick={() => setIsPrivate(false)}
+                className={`px-3 py-2 rounded-full text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                  !isPrivate
+                    ? "bg-[#14352c] text-white shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <Globe className="w-4 h-4" />
+                عام (شعبة)
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsPrivate(true)}
+                className={`px-3 py-2 rounded-full text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                  isPrivate
+                    ? "bg-[#14352c] text-white shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <Lock className="w-4 h-4" />
+                خاص (أستاذ)
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1.5">
+              {isPrivate
+                ? "سري تماماً: يبقى بينك وبين أستاذ المقرر فقط، ولن يظهر لبقية الطلبة."
+                : "يظهر لجميع طلاب شعبتك ولأستاذ المقرر على حائط المناقشات."}
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">
               عنوان الاستفسار (اختياري وموجز):
             </label>
             <input
@@ -724,7 +771,9 @@ export default function StudentQuestionsPage() {
               className="w-full bg-white border border-slate-300 rounded-xl p-3 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#14352c] focus:ring-1 focus:ring-[#14352c] transition"
             />
             <p className="text-[11px] text-slate-500 mt-1">
-              يظهر هذا الاستفسار لجميع طلاب شعبتك ولأستاذ المقرر على حائط المناقشات.
+              {isPrivate
+                ? "لن يظهر هذا الاستفسار في حائط الشعبة، وسيتلقى الأستاذ إشعاراً موسوماً بخصوصيته."
+                : "يظهر هذا الاستفسار لجميع طلاب شعبتك ولأستاذ المقرر على حائط المناقشات."}
             </p>
           </div>
 

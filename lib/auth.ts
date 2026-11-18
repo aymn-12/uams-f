@@ -16,6 +16,10 @@ export async function loginUser(email: string, password: string): Promise<User> 
   });
 
   if (res.data?.token) {
+    // Fresh session: wipe any cached data/workspace memory left by a
+    // previous account in this tab (prevents cross-user data leakage).
+    smartCache.clear();
+    smartCache.clearWorkspace();
     localStorage.setItem('uams_access_token', res.data.token);
     const user: User = {
       _id: res.data._id,
